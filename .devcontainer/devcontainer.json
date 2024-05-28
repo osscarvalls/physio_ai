@@ -1,0 +1,43 @@
+{
+    // Remote connection name
+    "name": "pysio_ai Langchain with ollama",
+    
+    //  Docker image to build the container
+    "image": "langchain/langchain:latest",
+
+    // Additional extensions installed inside the container
+    "customizations": {
+        "vscode": {
+        "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "ms-toolsai.vscode-jupyter-powertoys"
+        ]
+        }
+    },
+    
+    // Create working directories in the container
+    "workspaceFolder": "/workspace/code",
+    "mounts": ["source=${localWorkspaceFolder},target=/workspace/code,type=bind,consistency=cached"],
+            //    "source=/usr/share/ollama,target=/usr/share/ollama,type=bind,consistency=cached"],
+    
+    // All user permissions
+    "remoteUser": "root",
+
+    //Additional arguments to run the container (see https://docs.docker.com/reference/cli/docker/container/run)
+    "runArgs": [
+        // GPUs to use
+        "--gpus","device=0",
+        // Container name
+        "--name", "physio_ai_lang_llama_cpp",
+        // Work directory
+        "--workdir", "/workspace/code",
+        "--ipc", "host"],
+    
+    // Actions performed after the container is built
+    "postCreateCommand": "apt-get update && pip install --upgrade pip && pip install -r requirements.txt",
+    
+    // Stop container when the window is closed
+    "shutdownAction":"stopContainer"
+}
