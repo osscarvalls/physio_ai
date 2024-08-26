@@ -2,3 +2,7 @@ langchain
 ipykernel
 xmltodict
 biopython
+langchain-openai
+python-dotenv
+unstructured
+langchain-chroma
