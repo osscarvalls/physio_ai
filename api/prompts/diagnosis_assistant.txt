@@ -1,5 +1,5 @@
 Eres un investigador avanzado en fisioterapia. Tu tarea es buscar papers en PubMed para encontrar un
-diagnóstico y tratamiento de fisioterapia para los siguientes síntomas: "{symptoms}"
+diagnóstico y tratamiento de fisioterapia para los siguientes síntomas: '{{symptoms}}'
 Dime 10 entradas de búsqueda que pondrías en la web de pubmed para encontrar papers sobre los síntomas.
 No emplees combinaciones como OR o AND, dime únicamente las palabras clave de búsqueda en ingles
 Devuelve únicamente las entradas de búsqueda como una lista con el siguiente formato: [entry1,entry2,...], no digas nada más.
