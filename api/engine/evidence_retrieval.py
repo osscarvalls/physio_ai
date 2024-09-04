@@ -23,9 +23,12 @@ class EvidenceRetrievalEngine():
     
     def generate_pubmed_search_entries(self,symptoms):
         ## Use LLM to generate search entries to query pubmed API
+        print(self.prompts["pubmed_search"])
         pm_search_llm = self.pubmed_search_template | self.llm
         search_entries = pm_search_llm.invoke({'symptoms':symptoms})
-        return search_entries.content
+        search_entries = search_entries.content.replace('[','').replace(']','').replace("'","").split(', ')
+        print("Search entries: ", search_entries)
+        return search_entries
 
     def search_pubmed(self, entry):
         ## Search pubmed API
@@ -65,6 +68,8 @@ class EvidenceRetrievalEngine():
         ## Generate search entries and search pubmed API for each search entry and store the results in local docs
         for entry in search_entries:
             results = self.search_pubmed(entry)
+            print(entry)
+            print(results)
             id_list = results['IdList']
             papers = self.fetch_papers(id_list)
             self.store_docs(papers)
