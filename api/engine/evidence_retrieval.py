@@ -54,14 +54,18 @@ class EvidenceRetrievalEngine():
     def store_docs(self,papers):
         ## Store all papers fetched from pubmed API in local directory
         for paper in papers['PubmedArticle']:
-            paper_id = paper['MedlineCitation']['PMID']
-            paper_title = paper['MedlineCitation']['Article']['ArticleTitle']
-            abstract_text = paper['MedlineCitation']['Article']['Abstract']['AbstractText']
-            if not os.path.isfile(f'./docs/{paper_id}.txt'):
-                with open(file=f'./docs/{paper_id}.txt',mode='w') as f:
-                    f.write(f"Title: {paper_title}\n")
-                    f.write(f"Abstract: {abstract_text}")
-            else:
+            try:
+                paper_id = paper['MedlineCitation']['PMID']
+                paper_title = paper['MedlineCitation']['Article']['ArticleTitle']
+                abstract_text = paper['MedlineCitation']['Article']['Abstract']['AbstractText']
+                if not os.path.isfile(f'./docs/{paper_id}.txt'):
+                    with open(file=f'./docs/{paper_id}.txt',mode='w') as f:
+                        f.write(f"Title: {paper_title}\n")
+                        f.write(f"Abstract: {abstract_text}")
+                else:
+                    print(f"Document {paper_id} already exists")
+            except Exception as e:
+                print(f"Error storing doc {paper_id}: {e}")
                 continue
     
     def retrieve_evidence(self,search_entries):
@@ -90,7 +94,5 @@ class EvidenceRetrievalEngine():
         vectorstore = Chroma.from_documents(documents=all_splits, embedding=OpenAIEmbeddings())
         ## 5. Create retriever
         retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 10})
-        ## 6. Retrieve documents from vector store
-        retrieved_docs = retriever.invoke(symptoms)
-        ## 7. Return retrieved documents
-        return retrieved_docs
+        ## 6. Return retriever
+        return retriever

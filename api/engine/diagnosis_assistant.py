@@ -1,38 +1,41 @@
 from api.engine.utils import get_prompts, set_openai
 from api.engine.evidence_retrieval import EvidenceRetrievalEngine
 
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from langchain.prompts import ChatPromptTemplate
+from langchain.chains import create_retrieval_chain
 from langchain_openai import ChatOpenAI
+from langchain.chains.combine_documents import create_stuff_documents_chain
 
 class DiagnosisAssistantEngine():
     def __init__(self) -> None:
         set_openai()
-        self.prompts = get_prompts()
+        self.system_prompt = get_prompts()
         # Create the prompt template
-        self.prompt = PromptTemplate(
-            input_variables=["symptoms", "context"],
-            template=self.prompts["diagnosis_assistant"]
+        self.prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", self.system_prompt["diagnosis_assistant"]),
+                ("human", "{input}"),
+            ]
         )
 
-        # Create the RAG chain
+        # Define the language model
         self.llm = ChatOpenAI(model='gpt-4o-mini',temperature=0)
-        self.rag_chain = LLMChain(
-            llm=self.llm,
-            prompt=self.prompt,
-            verbose=False
-        )
 
+        # Create the question-answering chain
+        self.chain = create_stuff_documents_chain(self.llm, self.prompt)
+
+        # Create the evidence retrieval engine
         self.evidence_retrieval = EvidenceRetrievalEngine()
 
     def generate_diagnosis(self,symptoms):
 
-        self.evidence_retrieval(symptoms)
+        # Retrieve the evidence
+        retriever = self.evidence_retrieval(symptoms)
 
-        retrieved_docs = self.evidence_retrieval(symptoms)
+        rag_chain = create_retrieval_chain(retriever, self.chain)
 
         # Example usage of the RAG chain
-        context = "\n".join([doc.page_content for doc in retrieved_docs])
-        result = self.rag_chain.invoke({"symptoms": symptoms, "context": context})
+        result = rag_chain.invoke({"input": symptoms})
+        print(result)
 
-        return result['text']
+        return result['answer']
