@@ -6,3 +6,7 @@ langchain-openai
 python-dotenv
 unstructured
 langchain-chroma
+fastapi[standard]
+uvicorn
+pydantic
+langchain-community
