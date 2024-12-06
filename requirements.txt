@@ -10,3 +10,6 @@ fastapi[standard]
 uvicorn
 pydantic
 langchain-community
+jinja2
+python-multipart
+python-dotenv
