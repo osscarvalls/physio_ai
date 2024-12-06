@@ -8,21 +8,18 @@ This tool is for educational and research purposes only. It should not be used a
 
 ## 🌟 Features
 
-- **Symptom Analysis**: Process natural language descriptions of symptoms
-- **Evidence-Based Insights**: Retrieves relevant medical literature from PubMed
-- **Modern Web Interface**: Clean and responsive design for easy interaction
-- **Real-time Processing**: Immediate feedback and analysis
-- **Secure**: Requires API key authentication for operation
+- **Symptom Analysis**: Process natural language descriptions of symptoms using OpenAI GPT models and LangChain
+- **Evidence-Based Insights**: Retrieves relevant medical literature from PubMed using BioPython and XMLtodict
+- **Modern Web Interface**: Clean and responsive design
+- **Real-time Processing**: Immediate feedback and analysis through asynchronous FastAPI endpoints
+- **Secure**: Requires OpenAI API key authentication managed via python-dotenv
 
 ## 🛠 Prerequisites
 
 Before you begin, ensure you have:
 - macOS or Linux operating system
 - Python 3.11+ installed (via pyenv or system package manager)
-- Git installed
-- Internet connection
 - OpenAI API key (get one at https://platform.openai.com)
-- Sufficient OpenAI API credits for usage
 
 ## 🚀 Quick Start
 
