@@ -1,1 +1,5 @@
 env/
+.env
+docs/
+.devcontainer/
+__pycache__/

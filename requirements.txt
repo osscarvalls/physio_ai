@@ -2,3 +2,14 @@ langchain
 ipykernel
 xmltodict
 biopython
+langchain-openai
+python-dotenv
+unstructured
+langchain-chroma
+fastapi[standard]
+uvicorn
+pydantic
+langchain-community
+jinja2
+python-multipart
+python-dotenv
