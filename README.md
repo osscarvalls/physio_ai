@@ -144,3 +144,21 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 Oscar Valls Lozano - (https://www.linkedin.com/in/oscar-valls-lozano/)
 
 Project Link: [https://github.com/osscarvalls/pysio_ai](https://github.com/osscarvalls/pysio_ai)
+
+## 📚 Entrez/PubMed Access
+
+This application uses NCBI's E-utilities to retrieve medical literature from PubMed. While an API key is not required, it's good practice to:
+
+1. **Provide an Email Address**
+   Add this to your `.env` file:
+   ```
+   ENTREZ_EMAIL=your-email@example.com
+   ```
+   This allows NCBI to contact you if there are problems with your requests.
+
+2. **Usage Guidelines**
+   - Default limit: 3 requests/second
+   - Please respect NCBI's [Usage Guidelines](https://www.ncbi.nlm.nih.gov/books/NBK25497/)
+   - If you need to make more intensive requests, consider [obtaining an API key](https://www.ncbi.nlm.nih.gov/account/settings/)
+
+Note: The application will work without these configurations, but providing an email address is considered courteous to NCBI's services.

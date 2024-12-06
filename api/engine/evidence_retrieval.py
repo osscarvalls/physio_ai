@@ -32,7 +32,7 @@ class EvidenceRetrievalEngine():
 
     def search_pubmed(self, entry):
         ## Search pubmed API
-        Entrez.email = 'oscarvallslozano@gmail.com'
+        Entrez.email = os.getenv('ENTREZ_EMAIL')
         handle = Entrez.esearch(db='pubmed',
                                 sort='relevance',
                                 retmax='10',
