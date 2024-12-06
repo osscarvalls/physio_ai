@@ -1,6 +1,6 @@
-# PysioAI - Physiotherapy Diagnosis Assistant
+# PhysioAI - Physiotherapy Diagnosis Assistant
 
-PysioAI is an AI-powered physiotherapy diagnosis assistant that helps analyze symptoms and provide evidence-based medical insights. It combines natural language processing with medical knowledge to assist in preliminary diagnosis and clinic assessment.
+PhysioAI is an AI-powered physiotherapy diagnosis assistant that helps analyze symptoms and provide evidence-based medical insights. It combines natural language processing with medical knowledge to assist in preliminary diagnosis and clinic assessment.
 
 ## 🚨 Important Disclaimer
 
