@@ -41,15 +41,27 @@ class EvidenceRetrievalEngine():
         results = Entrez.read(handle)
         return results
     
-    def fetch_papers(self,id_list):
-        ## Fetch papers from pubmed API
-        ids = ','.join(id_list)
-        Entrez.email = 'oscarvallslozano@gmail.com'
-        handle = Entrez.efetch(db='pubmed',
-                            retmode='xml',
-                            id=ids)
-        results = Entrez.read(handle)
-        return results
+    def fetch_papers(self, id_list):
+        # Add validation for empty id_list
+        if not id_list:
+            return []  # or handle it according to your needs
+        
+        try:
+            handle = Entrez.efetch(
+                db="pubmed",
+                id=id_list,
+                rettype="xml",
+                retmode="xml"
+            )
+            results = Entrez.read(handle)
+            handle.close()
+            return results
+        except RuntimeError as e:
+            print(f"Error fetching papers: {str(e)}")
+            return []  # or handle the error according to your needs
+        except Exception as e:
+            print(f"Unexpected error: {str(e)}")
+            return []
     
     def store_docs(self,papers):
         ## Store all papers fetched from pubmed API in local directory
@@ -68,15 +80,17 @@ class EvidenceRetrievalEngine():
                 print(f"Error storing doc {paper_id}: {e}")
                 continue
     
-    def retrieve_evidence(self,search_entries):
-        ## Generate search entries and search pubmed API for each search entry and store the results in local docs
-        for entry in search_entries:
-            results = self.search_pubmed(entry)
-            print(entry)
-            print(results)
-            id_list = results['IdList']
-            papers = self.fetch_papers(id_list)
-            self.store_docs(papers)
+    def retrieve_evidence(self, search_entries):
+        # Add validation for search_entries
+        if not search_entries:
+            return []
+        
+        id_list = [entry['Id'] for entry in search_entries if 'Id' in entry]
+        if not id_list:  # Check if id_list is empty after filtering
+            return []
+        
+        papers = self.fetch_papers(id_list)
+        return papers
 
     def __call__(self,symptoms):
         ## Callable function to execute evidence retrieval and context generation

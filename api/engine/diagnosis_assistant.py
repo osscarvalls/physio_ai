@@ -27,15 +27,19 @@ class DiagnosisAssistantEngine():
         # Create the evidence retrieval engine
         self.evidence_retrieval = EvidenceRetrievalEngine()
 
-    def generate_diagnosis(self,symptoms):
+    def generate_diagnosis(self, symptoms: str) -> str:
+        if not symptoms or not symptoms.strip():
+            return "Please provide symptoms for diagnosis"
+        
+        try:
+            retriever = self.evidence_retrieval(symptoms)
+            rag_chain = create_retrieval_chain(retriever, self.chain)
 
-        # Retrieve the evidence
-        retriever = self.evidence_retrieval(symptoms)
+            # Example usage of the RAG chain
+            result = rag_chain.invoke({"input": symptoms})
+            print(result)
 
-        rag_chain = create_retrieval_chain(retriever, self.chain)
-
-        # Example usage of the RAG chain
-        result = rag_chain.invoke({"input": symptoms})
-        print(result)
-
-        return result['answer']
+            return result['answer']
+        except Exception as e:
+            print(f"Error generating diagnosis: {str(e)}")
+            return "Unable to generate diagnosis at this time"
