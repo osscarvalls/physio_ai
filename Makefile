@@ -5,7 +5,7 @@
 
 # Variables
 PYTHON = python3
-VENV = venv
+VENV = env
 PIP = $(VENV)/bin/pip
 PYTHON_VENV = $(VENV)/bin/python
 APP_NAME = pysio_ai

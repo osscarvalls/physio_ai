@@ -1,194 +1,154 @@
-# 🏥 PySIO AI - Asistente de Diagnóstico Médico
+# PySIO AI - API de Diagnóstico Médico
 
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+Una API inteligente para diagnóstico médico basado en síntomas utilizando inteligencia artificial y evidencia médica científica.
 
-**PySIO AI** es un sistema inteligente de asistencia médica que utiliza **Inteligencia Artificial** para generar diagnósticos preliminares basados en síntomas del paciente y evidencia médica de **PubMed**.
+## 🚀 Características
 
-## 🚀 Características Principales
+- **Diagnóstico Inteligente**: Genera diagnósticos médicos basados en síntomas usando GPT-4
+- **Evidencia Científica**: Integra búsquedas en PubMed para respaldar diagnósticos
+- **Base de Conocimiento Vectorial**: Almacena y recupera información médica relevante
+- **API RESTful**: Endpoints bien documentados y fáciles de usar
+- **Arquitectura Limpia**: Separación clara entre modelos, servicios y controladores
 
-- **🤖 IA Avanzada**: Utiliza GPT-4 para análisis de síntomas
-- **📚 Base de Conocimiento**: Integración con PubMed para evidencia médica
-- **🏗️ Arquitectura Limpia**: Separación clara en Models, Services y Controllers
-- **🔍 Búsqueda Semántica**: Recuperación inteligente de información médica
-- **📊 API REST**: Endpoints bien documentados con FastAPI
-- **⚡ Asíncrono**: Operaciones no bloqueantes para mejor rendimiento
-- **🔒 Seguro**: Validación de datos y manejo de errores robusto
-
-## 🏛️ Arquitectura del Sistema
+## 🏗️ Arquitectura
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Controllers   │    │     Services    │    │      Models     │
-│                 │    │                 │    │                 │
-│ • API Endpoints │───▶│ • Lógica de     │───▶│ • Estructura    │
-│ • Validación    │    │   Negocio       │    │   de Datos      │
-│ • Manejo HTTP   │    │ • Integración   │    │ • Validación    │
-└─────────────────┘    │   Externa       │    │ • Serialización │
-                       └─────────────────┘    └─────────────────┘
+app/
+├── config/          # Configuración y variables de entorno
+├── models/          # Modelos de datos Pydantic
+├── services/        # Lógica de negocio y servicios
+├── controllers/     # Endpoints de la API
+└── utils/           # Utilidades y helpers
 ```
 
-### **Capas de la Arquitectura**
+## 📋 Prerrequisitos
 
-- **🎮 Controllers**: Manejan requests HTTP y respuestas de la API
-- **🔧 Services**: Implementan la lógica de negocio y coordinación
-- **📊 Models**: Definen la estructura de datos con validación Pydantic
+- Python 3.13+
+- OpenAI API Key
+- Email válido para PubMed/Entrez
 
-## 📦 Instalación
+## ⚡ Instalación Rápida
 
-### **Requisitos Previos**
+1. **Clonar el repositorio**
 
-- Python 3.11+
-- pip
-- make (opcional, para usar el Makefile)
+   ```bash
+   git clone <repository-url>
+   cd pysio_ai
+   ```
 
-### **Instalación Rápida**
+2. **Crear entorno virtual**
+
+   ```bash
+   python3 -m venv env
+   source env/bin/activate  # En macOS/Linux
+   # o
+   env\Scripts\activate     # En Windows
+   ```
+
+3. **Instalar dependencias**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configurar variables de entorno**
+
+   ```bash
+   cp .env.example .env
+   # Editar .env con tu API key de OpenAI
+   ```
+
+5. **Ejecutar la API**
+   ```bash
+   python run.py
+   ```
+
+## 🔧 Uso del Makefile
 
 ```bash
-# 1. Clonar el repositorio
-git clone https://github.com/tu-usuario/pysio_ai.git
-cd pysio_ai
-
-# 2. Crear entorno virtual e instalar dependencias
-make install
-
-# 3. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con tu API key de OpenAI
-
-# 4. Verificar instalación
-make check-env
-
-# 5. Ejecutar la aplicación
-make run
-```
-
-### **Instalación Manual**
-
-```bash
-# Crear entorno virtual
-python3 -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
+# Ver todos los comandos disponibles
+make help
 
 # Instalar dependencias
-pip install -r requirements.txt
+make install
 
-# Configurar .env
-cp .env.example .env
-# Editar .env con tu configuración
+# Ejecutar en modo desarrollo
+make run-dev
 
-# Ejecutar
-python run.py
+# Ejecutar en modo producción
+make run-prod
+
+# Ejecutar tests
+make test
+
+# Verificar configuración
+make check-env
+```
+
+## 📚 Endpoints de la API
+
+### Diagnóstico
+
+- `POST /api/v1/diagnosis` - Generar diagnóstico médico
+- `GET /api/v1/diagnosis/history` - Obtener historial de diagnósticos
+- `POST /api/v1/diagnosis/update-knowledge` - Actualizar base de conocimiento
+
+### Utilidades
+
+- `GET /api/v1/health` - Verificar estado de la API
+- `GET /docs` - Documentación interactiva (Swagger UI)
+- `GET /redoc` - Documentación alternativa
+
+## 🔍 Ejemplo de Uso
+
+### Generar un Diagnóstico
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/diagnosis" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "symptoms": [
+         {
+           "description": "Dolor de cabeza intenso",
+           "severity": "moderate",
+           "duration": "2 hours"
+         }
+       ],
+       "patient_age": 35,
+       "patient_gender": "female",
+       "medical_history": "Sin antecedentes relevantes"
+     }'
+```
+
+### Respuesta
+
+```json
+{
+  "diagnosis": "Migraña tensional",
+  "confidence": 0.85,
+  "recommendations": [
+    "Descansar en un ambiente tranquilo",
+    "Aplicar compresas frías",
+    "Considerar analgésicos de venta libre"
+  ],
+  "timestamp": "2024-01-15T10:30:00Z"
+}
 ```
 
 ## ⚙️ Configuración
 
-### **Variables de Entorno**
+### Variables de Entorno
 
-Crea un archivo `.env` en el directorio raíz:
-
-```bash
-# OpenAI Configuration
-OPENAI_API_KEY=your-openai-api-key-here
-OPENAI_ORGANIZATION_ID=your-org-id-here
-OPENAI_MODEL=gpt-4o-mini
-OPENAI_TEMPERATURE=0.0
-
-# Server Configuration
-HOST=0.0.0.0
-PORT=8000
-DEBUG=false
-
-# PubMed Configuration
-ENTREZ_EMAIL=your-email@example.com
-
-# File Paths
-STATIC_DIR=templates/static
-TEMPLATES_DIR=templates
-DOCS_DIR=docs
-CHROMA_PERSIST_DIR=./chroma_db
-```
-
-## 🚀 Uso
-
-### **Iniciar la Aplicación**
-
-```bash
-# Modo desarrollo (con auto-reload)
-make run-dev
-
-# Modo producción
-make run-prod
-
-# Script directo
-python run.py
-```
-
-### **Acceder a la API**
-
-- **🌐 Aplicación Web**: http://localhost:8000
-- **📚 Documentación API**: http://localhost:8000/docs
-- **📖 ReDoc**: http://localhost:8000/redoc
-- **❤️ Health Check**: http://localhost:8000/api/v1/health
-
-### **Endpoints Principales**
-
-#### **Diagnóstico Médico**
-
-```http
-POST /api/v1/diagnosis
-Content-Type: application/json
-
-{
-  "symptoms": "Dolor de cabeza intenso, náuseas, sensibilidad a la luz",
-  "patient_age": 35,
-  "patient_gender": "femenino",
-  "medical_history": "Migrañas ocasionales"
-}
-```
-
-#### **Respuesta**
-
-```json
-{
-  "diagnosis": "Basado en los síntomas descritos, se sugiere una migraña...",
-  "confidence": 0.85,
-  "recommendations": [
-    "Consulte con un profesional médico para confirmar el diagnóstico",
-    "Mantenga un registro de sus síntomas y su evolución"
-  ],
-  "timestamp": "2024-01-15T10:30:00"
-}
-```
-
-## 🛠️ Comandos del Makefile
-
-```bash
-# Ayuda
-make help
-
-# Instalación
-make install          # Instala dependencias básicas
-make install-dev      # Instala dependencias de desarrollo
-
-# Ejecución
-make run             # Ejecuta la aplicación
-make run-dev         # Modo desarrollo con auto-reload
-make run-prod        # Modo producción
-
-# Testing y Calidad
-make test            # Ejecuta tests
-make test-watch      # Tests en modo watch
-make lint            # Ejecuta linter
-make format          # Formatea código
-make type-check      # Verifica tipos
-
-# Utilidades
-make clean           # Limpia archivos temporales
-make docs            # Genera documentación
-make check-env       # Verifica configuración
-```
+| Variable             | Descripción                 | Valor por Defecto |
+| -------------------- | --------------------------- | ----------------- |
+| `OPENAI_API_KEY`     | API Key de OpenAI           | Requerido         |
+| `OPENAI_MODEL`       | Modelo de OpenAI a usar     | `gpt-4o-mini`     |
+| `OPENAI_TEMPERATURE` | Temperatura para generación | `0.7`             |
+| `HOST`               | Host del servidor           | `0.0.0.0`         |
+| `PORT`               | Puerto del servidor         | `8000`            |
+| `DEBUG`              | Modo debug                  | `false`           |
+| `ENTREZ_EMAIL`       | Email para PubMed           | Requerido         |
+| `LOG_LEVEL`          | Nivel de logging            | `INFO`            |
 
 ## 🧪 Testing
 
@@ -196,117 +156,62 @@ make check-env       # Verifica configuración
 # Ejecutar todos los tests
 make test
 
-# Tests con coverage
+# Ejecutar tests con coverage
 make test
 
-# Tests en modo watch
+# Ejecutar tests en modo watch
 make test-watch
 ```
 
-## 📁 Estructura del Proyecto
+## 🚀 Despliegue
 
-```
-pysio_ai/
-├── app/                          # 🎯 Paquete principal
-│   ├── __init__.py
-│   ├── main.py                   # 🚀 Punto de entrada
-│   ├── config/                   # ⚙️ Configuración
-│   │   ├── __init__.py
-│   │   └── settings.py           # Configuración centralizada
-│   ├── models/                   # 📊 Modelos de datos
-│   │   ├── __init__.py
-│   │   └── diagnosis.py          # Modelos Pydantic
-│   ├── services/                 # 🔧 Lógica de negocio
-│   │   ├── __init__.py
-│   │   ├── diagnosis_service.py  # Servicio principal
-│   │   ├── llm_service.py        # Servicio LLM
-│   │   └── evidence_service.py   # Servicio evidencia
-│   ├── controllers/              # 🎮 Controladores API
-│   │   ├── __init__.py
-│   │   └── diagnosis_controller.py
-│   └── utils/                    # 🛠️ Utilidades
-├── templates/                     # 🎨 Templates HTML
-├── docs/                         # 📚 Documentación
-├── run.py                        # 🚀 Script de inicio
-├── requirements.txt              # 📦 Dependencias
-├── Makefile                      # 🛠️ Comandos de desarrollo
-└── README.md                     # 📖 Este archivo
+### Desarrollo
+
+```bash
+make run-dev
 ```
 
-## 🔧 Desarrollo
+### Producción
 
-### **Agregar Nuevas Funcionalidades**
+```bash
+make run-prod
+```
 
-1. **Modelos**: Definir en `app/models/`
-2. **Servicios**: Implementar en `app/services/`
-3. **Controladores**: Crear en `app/controllers/`
-4. **Tests**: Agregar en `app/tests/`
+### Docker
 
-### **Convenciones de Código**
+```bash
+make docker-build
+make docker-run
+```
 
-- **Type Hints**: Usar en todas las funciones
-- **Docstrings**: Documentar todas las clases y métodos
-- **Logging**: Usar logging estructurado
-- **Error Handling**: Manejar errores apropiadamente
-- **Async/Await**: Usar para operaciones I/O
+## 📊 Monitoreo
 
-## 🚧 Roadmap
-
-### **Versión 1.1** 🎯
-
-- [ ] Tests unitarios completos
-- [ ] Logging estructurado con structlog
-- [ ] Cache para respuestas frecuentes
-- [ ] Métricas y monitoreo
-
-### **Versión 1.2** 🚀
-
-- [ ] Autenticación y autorización
-- [ ] Base de datos para historial
-- [ ] API para múltiples idiomas
-- [ ] Dashboard de administración
-
-### **Versión 2.0** 🌟
-
-- [ ] Machine Learning personalizado
-- [ ] Integración con sistemas médicos
-- [ ] Análisis de imágenes médicas
-- [ ] Predicción de enfermedades
+- **Health Check**: `/api/v1/health`
+- **Logs**: Estructurados en formato JSON
+- **Métricas**: Endpoints de estado y rendimiento
 
 ## 🤝 Contribución
 
-¡Las contribuciones son bienvenidas! Por favor:
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
 
-1. **Fork** el proyecto
-2. **Crea** una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. **Commit** tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. **Push** a la rama (`git push origin feature/AmazingFeature`)
-5. **Abre** un Pull Request
+## 📝 Licencia
 
-### **Directrices de Contribución**
-
-- Mantener la separación de responsabilidades
-- Agregar tests para nuevas funcionalidades
-- Documentar cambios en la API
-- Seguir las convenciones de nomenclatura
-- Usar type hints en todas las funciones
-
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
+Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
 
 ## ⚠️ Descargo de Responsabilidad
 
-**IMPORTANTE**: PySIO AI es un **asistente médico** y **NO reemplaza** la consulta con profesionales médicos calificados. Siempre consulte con un médico para diagnósticos y tratamientos.
+**IMPORTANTE**: Esta API es solo para fines educativos y de investigación. No debe usarse para diagnóstico médico real. Siempre consulta con profesionales de la salud calificados para cualquier problema médico.
 
-## 📞 Contacto
+## 🆘 Soporte
 
-- **Proyecto**: [GitHub Issues](https://github.com/tu-usuario/pysio_ai/issues)
-- **Email**: tu-email@example.com
-- **Documentación**: [Wiki del Proyecto](https://github.com/tu-usuario/pysio_ai/wiki)
+- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
+- **Documentación**: `/docs` endpoint en la API
+- **Email**: [tu-email@example.com]
 
 ---
 
-**🏥 PySIO AI** - Transformando el diagnóstico médico con Inteligencia Artificial
-
-_Construido con ❤️ para la comunidad médica_
+Desarrollado con ❤️ para la comunidad médica y de IA

@@ -1,19 +1,18 @@
-# PySIO AI - Archivos a ignorar
-
-# Entorno virtual
+# Entornos virtuales
 venv/
 env/
 .venv/
+ENV/
 
 # Variables de entorno
 .env
 .env.local
 .env.production
+.env.staging
 
 # Python
-__pycache__/
 *.py[cod]
-*$py.class
+__pycache__/
 *.so
 .Python
 build/
@@ -31,6 +30,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # IDEs y editores
 .vscode/
@@ -44,21 +44,20 @@ Thumbs.db
 # Logs
 *.log
 logs/
-pysio_ai.log
 
-# Base de datos vectorial
+# Base de datos Chroma
 chroma_db/
 *.db
-*.sqlite3
+*.sqlite
 
-# Documentos médicos (se generan dinámicamente)
+# Documentos médicos generados dinámicamente
 docs/*.txt
 docs/*.pdf
 
 # Tests y coverage
 .coverage
-htmlcov/
 .pytest_cache/
+htmlcov/
 .tox/
 .cache
 nosetests.xml
@@ -70,12 +69,13 @@ coverage.xml
 *.tmp
 *.temp
 *.bak
-*.backup
+*.swp
+*.swo
 
-# Archivos de configuración local
-config.local.py
-settings.local.py
+# Jupyter Notebooks
+.ipynb_checkpoints
 
-# Archivos de desarrollo
-.env.development
-.env.test
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json

@@ -3,32 +3,25 @@ Controlador para endpoints de diagnóstico médico
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import HTMLResponse
-from fastapi.requests import Request
+from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Dict, Any
 
-from app.models.diagnosis import DiagnosisRequest, DiagnosisResponse
+from app.models.diagnosis import (
+    DiagnosisRequest, 
+    DiagnosisResponse, 
+    MedicalEvidence
+)
 from app.services.diagnosis_service import DiagnosisService
-from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Crear router para diagnóstico
-diagnosis_router = APIRouter(prefix="/api/v1", tags=["diagnóstico"])
+# Router para los endpoints de diagnóstico
+diagnosis_router = APIRouter(prefix="/api/v1", tags=["diagnosis"])
 
 
 def get_diagnosis_service() -> DiagnosisService:
-    """Dependency injection para el servicio de diagnóstico"""
+    """Dependency injection para DiagnosisService"""
     return DiagnosisService()
-
-
-@diagnosis_router.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    """Página principal de la aplicación"""
-    from fastapi.templating import Jinja2Templates
-    
-    templates = Jinja2Templates(directory=settings.TEMPLATES_DIR)
-    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @diagnosis_router.post("/diagnosis", response_model=DiagnosisResponse)
@@ -37,106 +30,44 @@ async def create_diagnosis(
     diagnosis_service: DiagnosisService = Depends(get_diagnosis_service)
 ) -> DiagnosisResponse:
     """
-    Genera un diagnóstico médico basado en los síntomas proporcionados
-    
-    Args:
-        request: Solicitud de diagnóstico con síntomas y datos del paciente
-        diagnosis_service: Servicio de diagnóstico inyectado
-        
-    Returns:
-        Respuesta con diagnóstico y recomendaciones
-        
-    Raises:
-        HTTPException: Si hay error en el procesamiento
+    Crea un nuevo diagnóstico basado en síntomas y contexto médico
     """
     try:
-        logger.info(f"Solicitud de diagnóstico recibida para síntomas: {request.symptoms[:100]}...")
-        
-        # Validar entrada
-        if not request.symptoms or not request.symptoms.strip():
-            raise HTTPException(
-                status_code=400, 
-                detail="Los síntomas son obligatorios"
-            )
-        
-        # Generar diagnóstico
-        response = await diagnosis_service.generate_diagnosis(request)
-        
-        logger.info("Diagnóstico generado exitosamente")
-        return response
-        
-    except HTTPException:
-        raise
+        return await diagnosis_service.generate_diagnosis(request)
     except Exception as e:
-        logger.error(f"Error inesperado en endpoint de diagnóstico: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error interno del servidor al generar diagnóstico"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al generar diagnóstico: {str(e)}")
 
 
 @diagnosis_router.get("/diagnosis/history")
 async def get_diagnosis_history(
     patient_id: str = None,
     diagnosis_service: DiagnosisService = Depends(get_diagnosis_service)
-):
+) -> List[Dict[str, Any]]:
     """
-    Obtiene historial de diagnósticos previos
-    
-    Args:
-        patient_id: ID del paciente (opcional)
-        diagnosis_service: Servicio de diagnóstico inyectado
-        
-    Returns:
-        Lista de diagnósticos previos
+    Obtiene el historial de diagnósticos (opcionalmente filtrado por paciente)
     """
     try:
-        history = await diagnosis_service.get_diagnosis_history(patient_id)
-        return {
-            "status": "success",
-            "data": history,
-            "count": len(history)
-        }
-        
+        return await diagnosis_service.get_diagnosis_history(patient_id)
     except Exception as e:
-        logger.error(f"Error obteniendo historial: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error obteniendo historial de diagnósticos"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al obtener historial: {str(e)}")
 
 
 @diagnosis_router.post("/diagnosis/update-knowledge")
 async def update_medical_knowledge(
     diagnosis_service: DiagnosisService = Depends(get_diagnosis_service)
-):
+) -> Dict[str, Any]:
     """
-    Actualiza la base de conocimiento médica
-    
-    Args:
-        diagnosis_service: Servicio de diagnóstico inyectado
-        
-    Returns:
-        Estado de la actualización
+    Actualiza la base de conocimiento médico
     """
     try:
-        result = await diagnosis_service.update_medical_knowledge()
-        return result
-        
+        return await diagnosis_service.update_medical_knowledge()
     except Exception as e:
-        logger.error(f"Error actualizando conocimiento médico: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error actualizando base de conocimiento médica"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al actualizar conocimiento: {str(e)}")
 
 
 @diagnosis_router.get("/health")
-async def health_check():
-    """Endpoint de verificación de salud del servicio"""
-    return {
-        "status": "healthy",
-        "service": "PySIO AI Diagnosis Service",
-        "version": "1.0.0",
-        "timestamp": "now"
-    }
+async def health_check() -> Dict[str, str]:
+    """
+    Endpoint de verificación de salud de la API
+    """
+    return {"status": "healthy", "service": "PySIO AI Diagnosis API"}

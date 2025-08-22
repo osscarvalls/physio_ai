@@ -3,57 +3,62 @@ PySIO AI - Aplicación principal refactorizada
 """
 
 import logging
-import sys
+import structlog
 from contextlib import asynccontextmanager
-
-import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.config.settings import settings
 from app.controllers.diagnosis_controller import diagnosis_router
 
-
-# Configuración de logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler("pysio_ai.log")
-    ]
+# Configuración de logging estructurado
+structlog.configure(
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.processors.JSONRenderer()
+    ],
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Maneja el ciclo de vida de la aplicación"""
+    """Maneja eventos de inicio y cierre de la aplicación"""
     # Startup
-    logger.info("🚀 Iniciando PySIO AI...")
-    logger.info(f"📊 Configuración: {settings.HOST}:{settings.PORT}")
+    logger.info("🚀 Iniciando PySIO AI API...")
+    logger.info(f"📊 Configuración: HOST={settings.HOST}, PORT={settings.PORT}, DEBUG={settings.DEBUG}")
     
     yield
     
     # Shutdown
-    logger.info("🛑 Cerrando PySIO AI...")
+    logger.info("🛑 Cerrando PySIO AI API...")
 
 
 def create_app() -> FastAPI:
     """Crea y configura la aplicación FastAPI"""
     
     app = FastAPI(
-        title="PySIO AI",
-        description="Asistente de diagnóstico médico basado en IA",
+        title="PySIO AI - API de Diagnóstico Médico",
+        description="API inteligente para diagnóstico médico basado en síntomas usando IA",
         version="1.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan
     )
     
-    # Configurar CORS
+    # Configuración de CORS
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],  # En producción, especificar dominios específicos
@@ -62,17 +67,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     
-    # Montar archivos estáticos
-    app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
-    
     # Incluir routers
     app.include_router(diagnosis_router)
     
-    # Endpoint raíz adicional
+    # Endpoint raíz
     @app.get("/")
     async def root():
         return {
-            "message": "Bienvenido a PySIO AI",
+            "message": "PySIO AI - API de Diagnóstico Médico",
             "version": "1.0.0",
             "docs": "/docs",
             "health": "/api/v1/health"
@@ -86,19 +88,12 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    logger.info("🏥 PySIO AI - Servicio de Diagnóstico Médico")
-    logger.info("=" * 50)
+    import uvicorn
     
-    try:
-        uvicorn.run(
-            "app.main:app",
-            host=settings.HOST,
-            port=settings.PORT,
-            reload=settings.DEBUG,
-            log_level="info"
-        )
-    except KeyboardInterrupt:
-        logger.info("Aplicación interrumpida por el usuario")
-    except Exception as e:
-        logger.error(f"Error iniciando la aplicación: {str(e)}")
-        sys.exit(1)
+    uvicorn.run(
+        "app.main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+        log_level=settings.LOG_LEVEL.lower()
+    )
