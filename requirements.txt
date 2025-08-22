@@ -1,15 +1,35 @@
-langchain
-ipykernel
-xmltodict
-biopython
-langchain-openai
-python-dotenv
-unstructured
-langchain-chroma
-fastapi[standard]
-uvicorn
-pydantic
-langchain-community
-jinja2
-python-multipart
-python-dotenv
+# Dependencias principales
+fastapi[standard]>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# LangChain y OpenAI
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langchain-community>=0.0.10
+langchain-chroma>=0.0.10
+langchain-text-splitters>=0.0.1
+
+# Procesamiento de documentos
+unstructured>=0.11.0
+biopython>=1.81.0
+
+# Base de datos vectorial
+chromadb>=0.4.0
+
+# Templates y frontend
+jinja2>=3.1.0
+python-multipart>=0.0.6
+
+# Utilidades
+python-dotenv>=1.0.0
+xmltodict>=0.13.0
+
+# Desarrollo y testing
+ipykernel>=6.25.0
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# Logging y monitoreo
+structlog>=23.2.0
