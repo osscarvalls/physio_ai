@@ -23,11 +23,13 @@ class Settings(BaseSettings):
     # Configuración de PubMed
     ENTREZ_EMAIL: str = Field(default="user@example.com", description="Email para Entrez/PubMed")
     
-    # Configuración de Chroma DB
-    CHROMA_PERSIST_DIR: str = Field(default="./chroma_db", description="Directorio de persistencia de Chroma DB")
+    # Configuración de QDRANT CLOUD
+    QDRANT_URL: str = Field(..., description="URL de Qdrant Cloud (ej: https://your-cluster.qdrant.io)")
+    QDRANT_API_KEY: str = Field(..., description="API Key de Qdrant Cloud")
+    QDRANT_COLLECTION_NAME: str = Field(default="pysio_ai", description="Nombre de la colección en Qdrant")
     
     # Configuración de logging
-    LOG_LEVEL: str = Field(default="INFO", description="Nivel de logging")
+    LOG_LEVEL: str = Field(default="DEBUG", description="Nivel de logging")
     
     class Config:
         env_file = ".env"

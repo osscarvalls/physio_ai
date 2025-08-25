@@ -20,20 +20,40 @@ logger = logging.getLogger(__name__)
 # Router para los endpoints de diagnóstico
 diagnosis_router = APIRouter(prefix="/api/v1", tags=["diagnosis"])
 
+# Instancias singleton de los servicios
+_diagnosis_service = None
+_semantic_search_service = None
+_pubmed_service = None
+
 
 def get_diagnosis_service() -> DiagnosisService:
-    """Dependency injection para DiagnosisService"""
-    return DiagnosisService()
+    """Dependency injection para DiagnosisService - Singleton pattern"""
+    global _diagnosis_service
+    if _diagnosis_service is None:
+        logger.info("🔧 Configurando DiagnosisService por primera vez...")
+        _diagnosis_service = DiagnosisService()
+        logger.info("✅ DiagnosisService configurado y listo para uso")
+    return _diagnosis_service
 
 
 def get_semantic_search_service() -> SemanticSearchService:
-    """Dependency injection para SemanticSearchService"""
-    return SemanticSearchService()
+    """Dependency injection para SemanticSearchService - Singleton pattern"""
+    global _semantic_search_service
+    if _semantic_search_service is None:
+        logger.info("🔧 Configurando SemanticSearchService por primera vez...")
+        _semantic_search_service = SemanticSearchService()
+        logger.info("✅ SemanticSearchService configurado y listo para uso")
+    return _semantic_search_service
 
 
 def get_pubmed_service() -> PubMedService:
-    """Dependency injection para PubMedService"""
-    return PubMedService()
+    """Dependency injection para PubMedService - Singleton pattern"""
+    global _pubmed_service
+    if _pubmed_service is None:
+        logger.info("🔧 Configurando PubMedService por primera vez...")
+        _pubmed_service = PubMedService()
+        logger.info("✅ PubMedService configurado y listo para uso")
+    return _pubmed_service
 
 
 @diagnosis_router.post("/diagnosis", response_model=DiagnosisResponse)
@@ -45,37 +65,9 @@ async def create_diagnosis(
     Crea un nuevo diagnóstico basado en síntomas y contexto médico
     """
     try:
-        return await diagnosis_service.generate_diagnosis(request)
+        return await diagnosis_service.evaluate_patient(request)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al generar diagnóstico: {str(e)}")
-
-
-@diagnosis_router.get("/diagnosis/history")
-async def get_diagnosis_history(
-    patient_id: str = None,
-    diagnosis_service: DiagnosisService = Depends(get_diagnosis_service)
-) -> List[Dict[str, Any]]:
-    """
-    Obtiene el historial de diagnósticos (opcionalmente filtrado por paciente)
-    """
-    try:
-        return await diagnosis_service.get_diagnosis_history(patient_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener historial: {str(e)}")
-
-
-@diagnosis_router.post("/diagnosis/update-knowledge")
-async def update_medical_knowledge(
-    diagnosis_service: DiagnosisService = Depends(get_diagnosis_service)
-) -> Dict[str, Any]:
-    """
-    Actualiza la base de conocimiento médico
-    """
-    try:
-        return await diagnosis_service.update_medical_knowledge()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al actualizar conocimiento: {str(e)}")
-
 
 @diagnosis_router.get("/health")
 async def health_check() -> Dict[str, str]:
@@ -84,56 +76,24 @@ async def health_check() -> Dict[str, str]:
     """
     return {"status": "healthy", "service": "PySIO AI Diagnosis API"}
 
-
-@diagnosis_router.post("/test/pubmed-search")
-async def test_pubmed_search(
-    query: str = "headache",
-    max_results: int = 3,
-    pubmed_service: PubMedService = Depends(get_pubmed_service)
-) -> Dict[str, Any]:
+@diagnosis_router.post("/reinitialize")
+async def reinitialize_services() -> Dict[str, str]:
     """
-    Endpoint de prueba para búsqueda en PubMed
+    Reinicializa todos los servicios (útil para testing o cambios de configuración)
     """
-    try:
-        articles = await pubmed_service.search_and_fetch(query, max_results)
-        return {
-            "query": query,
-            "articles_found": len(articles),
-            "articles": articles[:2]  # Solo retornar los primeros 2 para no sobrecargar
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en búsqueda PubMed: {str(e)}")
-
-
-@diagnosis_router.get("/test/vector-store-stats")
-async def test_vector_store_stats(
-    semantic_search_service: SemanticSearchService = Depends(get_semantic_search_service)
-) -> Dict[str, Any]:
-    """
-    Endpoint de prueba para estadísticas del vector store
-    """
-    try:
-        stats = await semantic_search_service.get_vector_store_stats()
-        return stats
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error obteniendo estadísticas: {str(e)}")
-
-
-@diagnosis_router.post("/test/ingest-pubmed")
-async def test_ingest_pubmed(
-    query: str = "headache diagnosis",
-    max_results: int = 3,
-    semantic_search_service: SemanticSearchService = Depends(get_semantic_search_service)
-) -> Dict[str, Any]:
-    """
-    Endpoint de prueba para ingestar artículos de PubMed
-    """
-    try:
-        success = await semantic_search_service.ingest_pubmed_articles(query, max_results)
-        return {
-            "query": query,
-            "ingestion_success": success,
-            "message": "Artículos ingresados en vector store" if success else "Error en ingesta"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en ingesta: {str(e)}")
+    global _diagnosis_service, _semantic_search_service, _pubmed_service
+    
+    logger.info("🔄 Reinicializando todos los servicios...")
+    
+    # Limpiar instancias existentes
+    _diagnosis_service = None
+    _semantic_search_service = None
+    _pubmed_service = None
+    
+    # Forzar nueva inicialización
+    get_diagnosis_service()
+    get_semantic_search_service()
+    get_pubmed_service()
+    
+    logger.info("✅ Todos los servicios reinicializados")
+    return {"status": "reinitialized", "message": "Todos los servicios han sido reinicializados"}
