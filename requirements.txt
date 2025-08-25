@@ -4,12 +4,16 @@ uvicorn[standard]>=0.24.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
-# LangChain y OpenAI
-langchain>=0.1.0
+# LangChain y OpenAI (solo para embeddings y vector store)
 langchain-openai>=0.0.5
-langchain-community>=0.0.10
 langchain-chroma>=0.0.10
 langchain-text-splitters>=0.0.1
+
+# LangGraph para flujos de trabajo
+langgraph>=0.2.0
+
+# OpenAI directo
+openai>=1.0.0
 
 # Procesamiento de documentos
 unstructured>=0.11.0

@@ -18,9 +18,7 @@ class Settings(BaseSettings):
     
     # Configuración de OpenAI
     OPENAI_API_KEY: str = Field(..., description="API Key de OpenAI")
-    OPENAI_ORGANIZATION_ID: Optional[str] = Field(default=None, description="ID de organización de OpenAI")
-    OPENAI_MODEL: str = Field(default="gpt-4o-mini", description="Modelo de OpenAI a usar")
-    OPENAI_TEMPERATURE: float = Field(default=0.7, description="Temperatura para la generación")
+    OPENAI_PROJECT_ID: str = Field(..., description="ID de proyecto en OPENAI")
     
     # Configuración de PubMed
     ENTREZ_EMAIL: str = Field(default="user@example.com", description="Email para Entrez/PubMed")
