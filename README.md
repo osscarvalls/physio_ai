@@ -1,164 +1,217 @@
-# PhysioAI - Physiotherapy Diagnosis Assistant
+# PySIO AI - API de Diagnóstico Médico
 
-PhysioAI is an AI-powered physiotherapy diagnosis assistant that helps analyze symptoms and provide evidence-based medical insights. It combines natural language processing with medical knowledge to assist in preliminary diagnosis and clinic assessment.
+Una API inteligente para diagnóstico médico basado en síntomas utilizando inteligencia artificial y evidencia médica científica.
 
-## 🚨 Important Disclaimer
+## 🚀 Características
 
-This tool is for educational and research purposes only. It should not be used as a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your physician or other qualified health provider with any questions you may have regarding a medical condition.
+- **Diagnóstico Inteligente**: Genera diagnósticos médicos basados en síntomas usando GPT-4
+- **Evidencia Científica**: Integra búsquedas en PubMed para respaldar diagnósticos
+- **Base de Conocimiento Vectorial**: Almacena y recupera información médica relevante
+- **API RESTful**: Endpoints bien documentados y fáciles de usar
+- **Arquitectura Limpia**: Separación clara entre modelos, servicios y controladores
 
-## 🌟 Features
+## 🏗️ Arquitectura
 
-- **Symptom Analysis**: Process natural language descriptions of symptoms using OpenAI GPT models and LangChain
-- **Evidence-Based Insights**: Retrieves relevant medical literature from PubMed using BioPython and XMLtodict
-- **Modern Web Interface**: Clean and responsive design
-- **Real-time Processing**: Immediate feedback and analysis through asynchronous FastAPI endpoints
-- **Secure**: Requires OpenAI API key authentication managed via python-dotenv
+```
+app/
+├── config/          # Configuración y variables de entorno
+├── models/          # Modelos de datos Pydantic
+├── services/        # Lógica de negocio y servicios
+├── controllers/     # Endpoints de la API
+└── utils/           # Utilidades y helpers
+```
 
-## 🛠 Prerequisites
+## 📋 Prerrequisitos
 
-Before you begin, ensure you have:
-- macOS or Linux operating system
-- Python 3.11+ installed (via pyenv or system package manager)
-- OpenAI API key (get one at https://platform.openai.com)
+- Python 3.13+
+- OpenAI API Key
+- Email válido para PubMed/Entrez
 
-## 🚀 Quick Start
+## ⚡ Instalación Rápida
 
-1. **Clone the repository**
+1. **Clonar el repositorio**
+
    ```bash
-   git clone https://github.com/yourusername/pysio_ai.git
+   git clone <repository-url>
    cd pysio_ai
    ```
 
-2. **Set up your environment**
+2. **Crear entorno virtual**
+
    ```bash
-   # Install everything (Python, virtual environment, and dependencies)
-   make install
-   
-   # Activate the virtual environment
-   source env/bin/activate
+   python3 -m venv env
+   source env/bin/activate  # En macOS/Linux
+   # o
+   env\Scripts\activate     # En Windows
    ```
 
-3. **Configure your API key**
+3. **Instalar dependencias**
+
    ```bash
-   # Create a .env file
-   echo "OPENAI_API_KEY=your-api-key-here" > .env
+   pip install -r requirements.txt
    ```
 
-4. **Run the application**
+4. **Configurar variables de entorno**
+
    ```bash
-   python main.py
+   cp .env.example .env
+   # Editar .env con tu API key de OpenAI
    ```
 
-5. **Access the web interface**
-   Open your browser and navigate to: `http://localhost:8000`
+5. **Ejecutar la API**
+   ```bash
+   python run.py
+   ```
 
-## 📁 Project Structure
-
-```
-pysio_ai/
-├── api/
-│   └── engine/
-│       ├── diagnosis_assistant.py
-│       └── evidence_retrieval.py
-├── templates/
-│   ├── static/
-│   │   └── css/
-│   │       └── styles.css
-│   └── index.html
-├── .env
-├── main.py
-├── Makefile
-└── README.md
-```
-
-## 🛠 Development Commands
-
-The project includes a Makefile with several useful commands:
+## 🔧 Uso del Makefile
 
 ```bash
-make install     # Set up everything (pyenv, virtualenv, and dependencies)
-make clean       # Remove virtual environment and cached files
-make setup-pyenv # Install Python 3.11.5 using pyenv
-make setup-venv  # Create and activate virtual environment
-make install-deps# Install project dependencies
-make help       # Show available commands
+# Ver todos los comandos disponibles
+make help
+
+# Instalar dependencias
+make install
+
+# Ejecutar en modo desarrollo
+make run-dev
+
+# Ejecutar en modo producción
+make run-prod
+
+# Ejecutar tests
+make test
+
+# Verificar configuración
+make check-env
 ```
 
-## 🔧 Configuration
+## 📚 Endpoints de la API
 
-The application requires an OpenAI API key to function. Create a `.env` file in the project root with:
+### Diagnóstico
 
-```plaintext
-OPENAI_API_KEY=your-api-key-here
+- `POST /api/v1/diagnosis` - Generar diagnóstico médico
+- `GET /api/v1/diagnosis/history` - Obtener historial de diagnósticos
+- `POST /api/v1/diagnosis/update-knowledge` - Actualizar base de conocimiento
+
+### Utilidades
+
+- `GET /api/v1/health` - Verificar estado de la API
+- `GET /docs` - Documentación interactiva (Swagger UI)
+- `GET /redoc` - Documentación alternativa
+
+## 🔍 Ejemplo de Uso
+
+### Generar un Diagnóstico
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/diagnosis" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "symptoms": [
+         {
+           "description": "Dolor de cabeza intenso",
+           "severity": "moderate",
+           "duration": "2 hours"
+         }
+       ],
+       "patient_age": 35,
+       "patient_gender": "female",
+       "medical_history": "Sin antecedentes relevantes"
+     }'
 ```
 
-## 🚀 Usage
+### Respuesta
 
-1. Start the server using `python main.py`
-2. Open your web browser to `http://localhost:8000`
-3. Enter symptoms in the text area
-4. Click "Analyze Symptoms" to receive an analysis
+```json
+{
+  "diagnosis": "Migraña tensional",
+  "confidence": 0.85,
+  "recommendations": [
+    "Descansar en un ambiente tranquilo",
+    "Aplicar compresas frías",
+    "Considerar analgésicos de venta libre"
+  ],
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
 
-## 🔒 Security Notes
+## ⚙️ Configuración
 
-- Never commit your `.env` file or expose your API keys
-- The application performs validation checks on startup
-- All API requests are made server-side for security
+### Variables de Entorno
 
-## 🐛 Troubleshooting
+| Variable             | Descripción                 | Valor por Defecto |
+| -------------------- | --------------------------- | ----------------- |
+| `OPENAI_API_KEY`     | API Key de OpenAI           | Requerido         |
+| `OPENAI_MODEL`       | Modelo de OpenAI a usar     | `gpt-4o-mini`     |
+| `OPENAI_TEMPERATURE` | Temperatura para generación | `0.7`             |
+| `HOST`               | Host del servidor           | `0.0.0.0`         |
+| `PORT`               | Puerto del servidor         | `8000`            |
+| `DEBUG`              | Modo debug                  | `false`           |
+| `ENTREZ_EMAIL`       | Email para PubMed           | Requerido         |
+| `LOG_LEVEL`          | Nivel de logging            | `INFO`            |
 
-Common issues and solutions:
+## 🧪 Testing
 
-1. **Server won't start**
-   - Check if `.env` file exists with valid API key
-   - Ensure virtual environment is activated
-   - Verify all dependencies are installed
+```bash
+# Ejecutar todos los tests
+make test
 
-2. **Missing dependencies**
-   ```bash
-   make install-deps
-   ```
+# Ejecutar tests con coverage
+make test
 
-3. **Python version mismatch**
-   ```bash
-   make clean
-   make install
-   ```
+# Ejecutar tests en modo watch
+make test-watch
+```
 
-## 📝 License
+## 🚀 Despliegue
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+### Desarrollo
 
-## 🤝 Contributing
+```bash
+make run-dev
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+### Producción
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+```bash
+make run-prod
+```
 
-## 📬 Contact
+### Docker
 
-Oscar Valls Lozano - (https://www.linkedin.com/in/oscar-valls-lozano/)
+```bash
+make docker-build
+make docker-run
+```
 
-Project Link: [https://github.com/osscarvalls/pysio_ai](https://github.com/osscarvalls/pysio_ai)
+## 📊 Monitoreo
 
-## 📚 Entrez/PubMed Access
+- **Health Check**: `/api/v1/health`
+- **Logs**: Estructurados en formato JSON
+- **Métricas**: Endpoints de estado y rendimiento
 
-This application uses NCBI's E-utilities to retrieve medical literature from PubMed. While an API key is not required, it's good practice to:
+## 🤝 Contribución
 
-1. **Provide an Email Address**
-   Add this to your `.env` file:
-   ```
-   ENTREZ_EMAIL=your-email@example.com
-   ```
-   This allows NCBI to contact you if there are problems with your requests.
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
 
-2. **Usage Guidelines**
-   - Default limit: 3 requests/second
-   - Please respect NCBI's [Usage Guidelines](https://www.ncbi.nlm.nih.gov/books/NBK25497/)
-   - If you need to make more intensive requests, consider [obtaining an API key](https://www.ncbi.nlm.nih.gov/account/settings/)
+## 📝 Licencia
 
-Note: The application will work without these configurations, but providing an email address is considered courteous to NCBI's services.
+Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
+
+## ⚠️ Descargo de Responsabilidad
+
+**IMPORTANTE**: Esta API es solo para fines educativos y de investigación. No debe usarse para diagnóstico médico real. Siempre consulta con profesionales de la salud calificados para cualquier problema médico.
+
+## 🆘 Soporte
+
+- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
+- **Documentación**: `/docs` endpoint en la API
+- **Email**: [tu-email@example.com]
+
+---
+
+Desarrollado con ❤️ para la comunidad médica y de IA

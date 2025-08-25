@@ -1,5 +1,81 @@
+# Entornos virtuales
+venv/
 env/
+.venv/
+ENV/
+
+# Variables de entorno
 .env
-docs/
-.devcontainer/
+.env.local
+.env.production
+.env.staging
+
+# Python
+*.py[cod]
 __pycache__/
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# IDEs y editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Base de datos Chroma
+chroma_db/
+*.db
+*.sqlite
+
+# Documentos médicos generados dinámicamente
+docs/*.txt
+docs/*.pdf
+
+# Tests y coverage
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Archivos temporales
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
