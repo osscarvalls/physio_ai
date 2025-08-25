@@ -10,6 +10,10 @@ from Bio import Entrez
 from datetime import datetime
 
 from app.config.settings import settings
+from qdrant_client import QdrantClient
+from langchain_qdrant import QdrantVectorStore
+from langchain_core.documents import Document
+from langchain_openai import OpenAIEmbeddings
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +74,11 @@ class PubMedService:
                     article = await self._fetch_article_details(pmid)
                     if article:
                         articles.append(article)
-                        await self._save_article_locally(article)
-                    
+                        # Solo guardar en QDRANT si el artículo se obtuvo correctamente
+                        self._save_article_to_qdrant(article)
+                    else:
+                        logger.warning(f"No se pudo obtener el artículo para PMID {pmid}")
+
                     # Pausa para no sobrecargar la API
                     import asyncio
                     await asyncio.sleep(0.1)
@@ -79,6 +86,7 @@ class PubMedService:
                 except Exception as e:
                     logger.error(f"Error procesando PMID {pmid}: {str(e)}")
                     continue
+                
             
             logger.info(f"Procesados {len(articles)} artículos de {len(pmid_list)} PMIDs")
             return articles
@@ -112,7 +120,7 @@ class PubMedService:
     def _parse_article(self, article: Dict[str, Any]) -> Dict[str, Any]:
         """Parsea un artículo de PubMed"""
         try:
-            pmid = article['MedlineCitation']['PMID']
+            pmid = str(article['MedlineCitation']['PMID'])
             title = article['MedlineCitation']['Article']['ArticleTitle']
             
             # Extraer abstract
@@ -150,6 +158,11 @@ class PubMedService:
                     if 'DescriptorName' in mesh:
                         keywords.append(mesh['DescriptorName'])
             
+            # Extraer full text
+            full_text = ""
+            if 'FullJournalName' in article['MedlineCitation']['Article']['Journal']:
+                full_text = article['MedlineCitation']['Article']['Journal']['FullJournalName']
+            
             return {
                 'pmid': pmid,
                 'title': title,
@@ -157,72 +170,97 @@ class PubMedService:
                 'authors': authors,
                 'publication_date': pub_date,
                 'journal': journal,
-                'keywords': keywords
+                'keywords': keywords,
+                'full_text': full_text
             }
             
         except Exception as e:
             logger.error(f"Error parseando artículo: {str(e)}")
             return {}
     
-    async def _save_article_locally(self, article: Dict[str, Any]) -> bool:
-        """Guarda un artículo localmente"""
+    def _save_article_to_qdrant(self, article: Dict[str, Any]):
+        """Guarda un artículo en Qdrant"""
         try:
-            os.makedirs(self.docs_dir, exist_ok=True)
+            # Validar que el artículo tenga los campos mínimos necesarios
+            if not article or not isinstance(article, dict):
+                logger.error("Artículo inválido o None")
+                return
+                
+            if 'pmid' not in article:
+                logger.error("Artículo sin PMID")
+                return
+                
+            # Asegurar que page_content no esté vacío
+            page_content = article.get("abstract", "")
+            if not page_content:
+                page_content = article.get("title", "Sin contenido disponible")
             
-            pmid = article['pmid']
-            safe_title = "".join(c for c in article['title'] if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            safe_title = safe_title[:50]
+            # Crear cliente de Qdrant
+            client = QdrantClient(
+                url=settings.QDRANT_URL,
+                api_key=settings.QDRANT_API_KEY
+            )
+            # Crear vectorstore de Qdrant
+            collection_name = settings.QDRANT_COLLECTION_NAME
+            vectorstore = QdrantVectorStore(
+                client=client,
+                collection_name=collection_name,
+                embedding=OpenAIEmbeddings(
+                    api_key=settings.OPENAI_API_KEY
+                )
+            )
+            # Crear documento simple sin ID
+            doc = Document(
+                page_content=page_content,
+                metadata={
+                    "title": article.get("title", ""),
+                    "pmid": article['pmid'],
+                    "keywords": article.get("keywords", ""),
+                    "authors": article.get("authors", ""),
+                    "publication_date": article.get("publication_date", ""),
+                    "journal": article.get("journal", "")
+                }
+            )
             
-            filename = f"{pmid}_{safe_title}.txt"
-            filepath = os.path.join(self.docs_dir, filename)
-            
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(f"PMID: {pmid}\n")
-                f.write(f"Title: {article['title']}\n")
-                f.write(f"Journal: {article['journal']}\n")
-                f.write(f"Publication Date: {article['publication_date']}\n")
-                f.write(f"Authors: {', '.join(article['authors'])}\n")
-                f.write(f"Keywords: {', '.join(article['keywords'])}\n")
-                f.write("\n" + "="*80 + "\n\n")
-                f.write("ABSTRACT:\n")
-                f.write(article['abstract'])
-            
-            logger.info(f"Artículo {pmid} guardado en {filepath}")
-            return True
-            
+            # Debug: verificar que el documento se creó correctamente
+            logger.info(f"Documento creado: PMID={article['pmid']}, contenido={len(page_content)} chars")
+            logger.info(f"Metadatos: {doc.metadata}")
+
+            # Intentar agregar usando langchain primero
+            try:
+                vectorstore.add_documents([doc])
+                logger.info(f"Artículo {article['pmid']} guardado exitosamente en QDRANT usando langchain")
+            except Exception as add_error:
+                logger.warning(f"Langchain falló, intentando con cliente directo: {str(add_error)}")
+                
+                # Fallback: usar cliente directo de QDRANT
+                try:
+                    # Crear embeddings
+                    embeddings = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
+                    vector = embeddings.embed_query(page_content)
+                    
+                    # Insertar directamente en QDRANT
+                    client.upsert(
+                        collection_name=collection_name,
+                        points=[{
+                            "id": article['pmid'],
+                            "vector": vector,
+                            "payload": {
+                                "page_content": page_content,
+                                "title": article.get("title", ""),
+                                "pmid": article['pmid'],
+                                "keywords": article.get("keywords", ""),
+                                "authors": article.get("authors", ""),
+                                "publication_date": article.get("publication_date", ""),
+                                "journal": article.get("journal", "")
+                            }
+                        }]
+                    )
+                    logger.info(f"Artículo {article['pmid']} guardado exitosamente en QDRANT usando cliente directo")
+                    
+                except Exception as direct_error:
+                    logger.error(f"Error con cliente directo: {str(direct_error)}")
+
         except Exception as e:
-            logger.error(f"Error guardando artículo {article.get('pmid', 'unknown')}: {str(e)}")
-            return False
+            logger.error(f"Error guardando el artículo {article['pmid']} en QDRANT: {str(e)}")
     
-    async def get_local_articles(self) -> List[Dict[str, Any]]:
-        """Obtiene artículos guardados localmente"""
-        try:
-            if not os.path.exists(self.docs_dir):
-                return []
-            
-            articles = []
-            for filename in os.listdir(self.docs_dir):
-                if filename.endswith('.txt'):
-                    filepath = os.path.join(self.docs_dir, filename)
-                    
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    
-                    # Extraer PMID del contenido
-                    pmid = ""
-                    for line in content.split('\n'):
-                        if line.startswith('PMID:'):
-                            pmid = line.split(':', 1)[1].strip()
-                            break
-                    
-                    articles.append({
-                        'pmid': pmid,
-                        'content': content,
-                        'filepath': filepath
-                    })
-            
-            return articles
-            
-        except Exception as e:
-            logger.error(f"Error obteniendo artículos locales: {str(e)}")
-            return []

@@ -222,7 +222,16 @@ class DiagnosisService:
                 try:
                     evidence = await self.semantic_search_service.search_medical_evidence(query, max_results=3)
                     if evidence:
-                        all_evidence.extend(evidence)
+                        # Evitar duplicados por PMID antes de agregar a all_evidence
+                        pmids_existentes = {doc.get('metadata', {}).get('pmid') for doc in all_evidence if doc.get('metadata', {}).get('pmid')}
+                        evidencia_filtrada = []
+                        for doc in evidence:
+                            pmid = doc.get('metadata', {}).get('pmid')
+                            if pmid is None or pmid not in pmids_existentes:
+                                evidencia_filtrada.append(doc)
+                                if pmid:
+                                    pmids_existentes.add(pmid)
+                        all_evidence.extend(evidencia_filtrada)
                         logger.info(f"Encontrada evidencia para consulta '{query}': {len(evidence)} documentos")
                 except Exception as e:
                     logger.error(f"Error buscando evidencia para '{query}': {str(e)}")
@@ -397,7 +406,7 @@ class DiagnosisService:
             # Buscar evidencia en PubMed para cada consulta
             for query in pubmed_queries[:3]:  # Limitar a 3 consultas por iteración
                 try:
-                    evidence = await self.pubmed_service.search_medical_evidence(query, max_results=3)
+                    evidence = await self.pubmed_service.search_and_fetch(query, max_results=3)
                     if evidence:
                         all_evidence.extend(evidence)
                         logger.info(f"Encontrada evidencia para consulta '{query}': {len(evidence)} documentos")
@@ -405,7 +414,6 @@ class DiagnosisService:
                     logger.error(f"Error buscando evidencia para '{query}': {str(e)}")
                     continue
             
-            state["medical_evidence"] = all_evidence
             logger.info(f"Evidencia médica encontrada en iteración {state['search_iterations']}: {len(all_evidence)} documentos")
             
             return state
