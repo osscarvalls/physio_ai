@@ -3,68 +3,94 @@ Servicio principal de diagnóstico médico con LangGraph
 """
 
 import logging
-from typing import List, Dict, Any, TypedDict, Annotated
+from typing import List, Dict, Any, TypedDict
 from datetime import datetime
 from langgraph.graph import StateGraph, START, END
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
+
 
 from app.services.semantic_search_service import SemanticSearchService
-from app.models.diagnosis import DiagnosisRequest, DiagnosisResponse, MedicalEvidence
+from app.services.pubmed_service import PubMedService
+from app.services.tools import SearchTools, EvaluationTools, DiagnosisTools
+from app.models.diagnosis import DiagnosisRequest, DiagnosisResponse
 from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
 
-# Estados del grafo
 class DiagnosisState(TypedDict):
-    """Estado del flujo de diagnóstico"""
     symptoms: str
     patient_age: int
     patient_gender: str
     search_queries: List[str]
     medical_evidence: List[Dict[str, Any]]
-    evidence_evaluation: Dict[str, Any]
+    evidence_evaluation: str
+    pubmed_queries: List[str]
     search_iterations: int
-    max_iterations: int
+    max_search_iterations: int
+    evaluation_iterations: int
+    max_evaluation_iterations: int
     patient_evaluation: Dict[str, Any]
     error: str
     timestamp: str
-
-
+    
 class DiagnosisService:
     """Servicio principal para generar diagnósticos médicos con LangGraph"""
     
     def __init__(self):
         """Inicializa el servicio de diagnóstico"""
         self.semantic_search_service = SemanticSearchService()
+        self.pubmed_service = PubMedService()
         self.llm = ChatOpenAI(
-            model='gpt-4o-mini',
+            model='gpt-5-nano',
             temperature=0.1,
             api_key=settings.OPENAI_API_KEY
         )
+        
+        # Inicializar herramientas
+        self.search_tools = SearchTools(self.llm)
+        self.evaluation_tools = EvaluationTools(self.llm)
+        self.diagnosis_tools = DiagnosisTools(self.llm)
+        
         self._setup_graph()
     
     def _setup_graph(self):
-        """Configura el grafo de LangGraph"""
-        # Crear el grafo
+        """Configura el grafo de LangGraph con flujo iterativo y condicional"""
         workflow = StateGraph(DiagnosisState)
         
-        # Añadir nodos
-        workflow.add_node("generate_queries", self._generate_search_queries)
-        workflow.add_node("generate_patient_evaluation", self._generate_patient_evaluation)
+        workflow.add_node("generate_semantic_queries", self._generate_semantic_queries)
+        workflow.add_node("search_semantic", self._search_semantic)
+        workflow.add_node("evaluate_relevance", self._evaluate_relevance)
+        workflow.add_node("generate_pubmed_queries", self._generate_pubmed_queries)
+        workflow.add_node("search_pubmed", self._search_pubmed)
+        workflow.add_node("generate_diagnosis", self._generate_diagnosis)
+        workflow.add_node("no_evidence_found", self._no_evidence_found)
         
-        # Definir el flujo simple (solo 2 nodos por ahora)
-        workflow.add_edge(START, "generate_queries")
-        workflow.add_edge("generate_queries", "generate_patient_evaluation")
-        workflow.add_edge("generate_patient_evaluation", END)
+        workflow.add_edge(START, "generate_semantic_queries")
+        workflow.add_edge("generate_semantic_queries", "search_semantic")
+        workflow.add_edge("search_semantic", "evaluate_relevance")
         
-        # Compilar el grafo
+        workflow.add_conditional_edges(
+            "evaluate_relevance",
+            self._evaluate_relevance_router,
+            {
+                "relevant": "generate_diagnosis",
+                "expand": "generate_pubmed_queries",
+                "no_evidence": "no_evidence_found"
+            }
+        )
+        
+        workflow.add_edge("generate_pubmed_queries", "search_pubmed")
+        workflow.add_edge("search_pubmed", "search_semantic")
+        workflow.add_edge("search_semantic", "evaluate_relevance")
+        
+        workflow.add_edge("generate_diagnosis", END)
+        workflow.add_edge("no_evidence_found", END)
+        
         self.graph = workflow.compile()
+        logger.info("Grafo de diagnóstico configurado correctamente")
         
-        logger.info("Grafo de diagnóstico configurado con LangGraph (versión mínima)")
-    
-    async def generate_diagnosis(self, request: DiagnosisRequest) -> DiagnosisResponse:
+    async def evaluate_patient(self, request: DiagnosisRequest) -> DiagnosisResponse:
         """
         Genera una evaluación completa del paciente basada en la solicitud
         
@@ -86,7 +112,9 @@ class DiagnosisService:
                 medical_evidence=[],
                 evidence_evaluation={},
                 search_iterations=0,
-                max_iterations=3,
+                max_search_iterations=3,
+                evaluation_iterations=0,
+                max_evaluation_iterations=2,
                 patient_evaluation={},
                 error="",
                 timestamp=datetime.now().isoformat()
@@ -99,16 +127,29 @@ class DiagnosisService:
             
             logger.info(f"Estado final del grafo: {final_state}")
             
-            # Construir respuesta
-            patient_eval = final_state.get("patient_evaluation", {})
-            response = DiagnosisResponse(
-                diagnosis=patient_eval.get("diagnosis_summary", "No se pudo generar evaluación"),
-                confidence=patient_eval.get("confidence", 0.0),
-                recommendations=patient_eval.get("recommendations", []),
-                timestamp=final_state.get("timestamp")
-            )
+            if "patient_evaluation" in final_state and final_state["patient_evaluation"]:
+                patient_eval = final_state["patient_evaluation"]
+                response = DiagnosisResponse(
+                    patient_situation=patient_eval.get("patient_situation", "No se pudo generar evaluación"),
+                    diagnostic_suggestions=patient_eval.get("diagnostic_suggestions", []),
+                    confirmation_tests=patient_eval.get("confirmation_tests", []),
+                    diagnosis=patient_eval.get("diagnosis_summary", "No se pudo generar evaluación"),
+                    confidence=patient_eval.get("confidence", 0.0),
+                    evidence_quality=patient_eval.get("evidence_quality", "No se pudo generar evaluación"),
+                    missing_information=patient_eval.get("missing_information", []),
+                    recommendations=patient_eval.get("recommendations", []),
+                    timestamp=final_state.get("timestamp")
+                )
+                logger.info("Evaluación del paciente generada exitosamente")
+            else:
+                response = DiagnosisResponse(
+                    diagnosis="No se encontró evidencia médica suficiente para generar un diagnóstico",
+                    confidence=0.0,
+                    recommendations=["Consulte con un profesional médico para evaluación directa"],
+                    timestamp=final_state.get("timestamp")
+                )
+                logger.info("No se encontró evidencia médica suficiente")
             
-            logger.info("Evaluación del paciente generada exitosamente")
             return response
             
         except Exception as e:
@@ -120,45 +161,18 @@ class DiagnosisService:
                 error=str(e)
             )
     
-    async def _generate_search_queries(self, state: DiagnosisState) -> DiagnosisState:
+    async def _generate_semantic_queries(self, state: DiagnosisState) -> DiagnosisState:
         """Genera consultas de búsqueda optimizadas para fisioterapia"""
         try:
             symptoms = state["symptoms"]
             age = state["patient_age"]
             gender = state["patient_gender"]
             
-            prompt = ChatPromptTemplate.from_template("""
-            Eres un fisioterapeuta experto que necesita buscar evidencia médica para evaluar un paciente.
+            queries = await self.search_tools.generate_semantic_queries(symptoms, age, gender)
+            state["search_queries"] = queries
             
-            Paciente: {age} años, {gender}
-            Síntomas: {symptoms}
-            
-            Genera 3-5 consultas de búsqueda optimizadas para PubMed que se enfoquen en:
-            1. Diagnóstico diferencial de fisioterapia
-            2. Evaluación y pruebas específicas
-            3. Tratamiento fisioterapéutico
-            4. Evidencia clínica relevante
-            
-            Las consultas deben ser específicas y precisas, priorizando la calidad sobre la cantidad.
-            Genera solo las consultas, una por línea, sin numeración ni formato adicional.
-            """)
-            
-            chain = prompt | self.llm
-            result = await chain.ainvoke({
-                "symptoms": symptoms,
-                "age": age,
-                "gender": gender
-            })
-            
-            # Parsear resultado
-            queries = [
-                query.strip() 
-                for query in result.content.split('\n') 
-                if query.strip()
-            ]
-            
-            state["search_queries"] = queries[:5]  # Limitar a 5 consultas
-            logger.info(f"Consultas de búsqueda generadas: {len(queries)}")
+            if not queries:
+                state["error"] = "Error generando consultas de búsqueda"
             
             return state
             
@@ -167,196 +181,149 @@ class DiagnosisService:
             state["error"] = f"Error generando consultas: {str(e)}"
             return state
     
-    async def _gather_medical_evidence(self, state: DiagnosisState) -> DiagnosisState:
-        """Recopila evidencia médica relevante"""
+    def _add_evidence_without_duplicates(self, existing_evidence: List[Dict], new_evidence: List[Dict]) -> List[Dict]:
+        """Agrega nueva evidencia evitando duplicados por PMID"""
+        if not new_evidence:
+            return existing_evidence
+            
+        pmids_existentes = {doc.get('metadata', {}).get('pmid') for doc in existing_evidence if doc.get('metadata', {}).get('pmid')}
+        evidencia_filtrada = []
+        
+        for doc in new_evidence:
+            pmid = doc.get('metadata', {}).get('pmid')
+            if pmid is None or pmid not in pmids_existentes:
+                evidencia_filtrada.append(doc)
+                if pmid:
+                    pmids_existentes.add(pmid)
+        
+        return existing_evidence + evidencia_filtrada
+
+    async def _search_semantic(self, state: DiagnosisState) -> DiagnosisState:
+        """Realiza búsqueda semántica en Qdrant"""
         try:
             search_queries = state["search_queries"]
+            symptoms = state["symptoms"]
             all_evidence = []
             
-            # Incrementar contador de iteraciones
             state["search_iterations"] += 1
-            logger.info(f"Iteración de búsqueda {state['search_iterations']}/{state['max_iterations']}")
+            logger.info(f"Iteración de búsqueda {state['search_iterations']}/{state['max_search_iterations']}")
             
-            for query in search_queries[:3]:  # Limitar a 3 consultas
+            if not search_queries:
+                logger.warning("No hay consultas de búsqueda disponibles")
+                state["medical_evidence"] = []
+                return state
+            
+            for query in search_queries[:3]:
                 try:
-                    # Buscar evidencia médica
                     evidence = await self.semantic_search_service.search_medical_evidence(query, max_results=3)
-                    
                     if evidence:
-                        all_evidence.extend(evidence)
+                        all_evidence = self._add_evidence_without_duplicates(all_evidence, evidence)
                         logger.info(f"Encontrada evidencia para consulta '{query}': {len(evidence)} documentos")
-                    else:
-                        # Si no hay evidencia, intentar ingestar artículos de PubMed
-                        logger.info(f"No hay evidencia para '{query}', intentando ingestar de PubMed")
-                        success = await self.semantic_search_service.ingest_pubmed_articles(query, max_results=3)
-                        if success:
-                            # Buscar nuevamente
-                            evidence = await self.semantic_search_service.search_medical_evidence(query, max_results=3)
-                            if evidence:
-                                all_evidence.extend(evidence)
-                
                 except Exception as e:
-                    logger.error(f"Error procesando consulta '{query}': {str(e)}")
+                    logger.error(f"Error buscando evidencia para '{query}': {str(e)}")
                     continue
             
-            # Si no hay evidencia, usar búsqueda local
             if not all_evidence:
-                logger.info("No se encontró evidencia, usando búsqueda local")
-                all_evidence = await self.semantic_search_service.search_medical_evidence(
-                    " ".join(search_queries),
-                    max_results=5
-                )
+                logger.info("No hay evidencia semántica, intentando búsqueda general")
+                try:
+                    evidence = await self.semantic_search_service.search_medical_evidence(symptoms, max_results=5)
+                    if evidence:
+                        all_evidence = self._add_evidence_without_duplicates(all_evidence, evidence)
+                except Exception as e:
+                    logger.error(f"Error en búsqueda general: {str(e)}")
             
             state["medical_evidence"] = all_evidence
-            logger.info(f"Evidencia médica encontrada: {len(all_evidence)} documentos")
+            logger.info(f"Evidencia médica encontrada en iteración {state['search_iterations']}: {len(all_evidence)} documentos")
             
             return state
             
         except Exception as e:
-            logger.error(f"Error recopilando evidencia: {str(e)}")
-            state["error"] = f"Error recopilando evidencia: {str(e)}"
+            logger.error(f"Error en búsqueda semántica: {str(e)}")
+            state["error"] = f"Error en búsqueda semántica: {str(e)}"
             return state
-    
-    async def _evaluate_evidence(self, state: DiagnosisState) -> DiagnosisState:
-        """Evalúa la calidad y cantidad de evidencia recopilada"""
+
+    async def _evaluate_relevance(self, state: DiagnosisState) -> DiagnosisState:
+        """Evalúa la relevancia de la evidencia encontrada"""
         try:
             medical_evidence = state["medical_evidence"]
             symptoms = state["symptoms"]
             
-            # Formatear contexto médico
-            context = self._format_medical_context(medical_evidence)
-            
-            prompt = ChatPromptTemplate.from_template("""
-            Eres un fisioterapeuta experto que evalúa la calidad de la evidencia médica recopilada.
-            
-            Síntomas del paciente: {symptoms}
-            Evidencia médica disponible: {context}
-            
-            Evalúa la evidencia en términos de:
-            1. Relevancia para el caso (0-10)
-            2. Calidad de la evidencia (0-10)
-            3. Cobertura de aspectos clave (0-10)
-            4. Suficiencia para generar una evaluación completa (SÍ/NO)
-            
-            Responde en formato JSON:
-            {{
-                "relevance_score": <puntuación>,
-                "quality_score": <puntuación>,
-                "coverage_score": <puntuación>,
-                "is_sufficient": <SÍ/NO>,
-                "missing_aspects": ["aspecto1", "aspecto2"],
-                "recommendations": ["recomendación1", "recomendación2"]
-            }}
-            """)
-            
-            chain = prompt | self.llm
-            result = await chain.ainvoke({
-                "symptoms": symptoms,
-                "context": context
-            })
-            
-            # Parsear resultado JSON
-            try:
-                import json
-                evaluation = json.loads(result.content)
-                state["evidence_evaluation"] = evaluation
-                logger.info(f"Evaluación de evidencia: {evaluation}")
-            except json.JSONDecodeError:
-                logger.error("Error parseando evaluación de evidencia")
-                state["evidence_evaluation"] = {
-                    "relevance_score": 5,
-                    "quality_score": 5,
-                    "coverage_score": 5,
-                    "is_sufficient": "NO",
-                    "missing_aspects": ["evidencia insuficiente"],
-                    "recommendations": ["ampliar búsqueda"]
-                }
+            evaluation = await self.evaluation_tools.evaluate_relevance(symptoms, medical_evidence)
+            state["evidence_evaluation"] = evaluation
             
             return state
             
         except Exception as e:
-            logger.error(f"Error evaluando evidencia: {str(e)}")
-            state["error"] = f"Error evaluando evidencia: {str(e)}"
+            logger.error(f"Error evaluando relevancia: {str(e)}")
+            state["error"] = f"Error evaluando relevancia: {str(e)}"
             return state
     
-    def _should_expand_evidence(self, state: DiagnosisState) -> str:
-        """Determina si se debe expandir la evidencia o proceder con la evaluación"""
+    def _evaluate_relevance_router(self, state: DiagnosisState) -> str:
+        """Determina el siguiente paso basado en la evaluación de relevancia"""
         try:
             evaluation = state.get("evidence_evaluation", {})
             iterations = state.get("search_iterations", 0)
-            max_iterations = state.get("max_iterations", 3)
+            max_iterations = state.get("max_search_iterations", 3)
             
-            # Si ya alcanzamos el máximo de iteraciones, proceder
-            if iterations >= max_iterations:
-                logger.info(f"Alcanzado máximo de iteraciones ({max_iterations}), procediendo con evaluación")
-                return "sufficient"
-            
-            # Si la evidencia es suficiente, proceder
-            is_sufficient = evaluation.get("is_sufficient", "NO")
-            if is_sufficient == "SÍ":
-                logger.info("Evidencia suficiente encontrada, procediendo con evaluación")
-                return "sufficient"
-            
-            # Si la evidencia no es suficiente y podemos iterar más, expandir
-            logger.info(f"Evidencia insuficiente, expandiendo búsqueda (iteración {iterations + 1})")
-            return "expand"
+            return self.evaluation_tools.evaluate_relevance_router(evaluation, iterations, max_iterations)
             
         except Exception as e:
             logger.error(f"Error en lógica condicional: {str(e)}")
-            return "sufficient"  # Por defecto, proceder
+            return "expand"
     
-    async def _expand_evidence(self, state: DiagnosisState) -> DiagnosisState:
-        """Expande la evidencia buscando en PubMed y actualizando la base de datos vectorial"""
+    async def _generate_pubmed_queries(self, state: DiagnosisState) -> DiagnosisState:
+        """Genera consultas de búsqueda PubMed optimizadas para fisioterapia"""
         try:
             symptoms = state["symptoms"]
-            evaluation = state.get("evidence_evaluation", {})
-            missing_aspects = evaluation.get("missing_aspects", [])
+            age = state["patient_age"]
+            gender = state["patient_gender"]
             
-            logger.info(f"Expandiendo evidencia para aspectos faltantes: {missing_aspects}")
+            queries = await self.search_tools.generate_pubmed_queries(symptoms, age, gender)
+            state["pubmed_queries"] = queries
             
-            # Generar consultas específicas para aspectos faltantes
-            if missing_aspects:
-                # Crear consultas específicas para aspectos faltantes
-                specific_queries = []
-                for aspect in missing_aspects[:2]:  # Limitar a 2 aspectos
-                    query = f"{aspect} {symptoms} fisioterapia"
-                    specific_queries.append(query)
-                
-                # Añadir a las consultas existentes
-                state["search_queries"].extend(specific_queries)
-                logger.info(f"Consultas adicionales generadas: {specific_queries}")
+            if not queries:
+                state["error"] = "Error generando consultas PubMed"
             
-            # Buscar e ingestar nuevos artículos de PubMed
-            for query in state["search_queries"][-2:]:  # Solo las 2 últimas consultas
+            return state
+
+        except Exception as e:
+            logger.error(f"Error generando consultas PubMed: {str(e)}")
+            state["error"] = f"Error generando consultas PubMed: {str(e)}"
+            return state
+    
+    async def _search_pubmed(self, state: DiagnosisState) -> DiagnosisState:
+        """Realiza búsqueda en PubMed"""
+        try:
+            pubmed_queries = state["pubmed_queries"]
+            
+            if not pubmed_queries:
+                logger.warning("No hay consultas de PubMed disponibles")
+                return state
+            
+            all_evidence = []
+            for query in pubmed_queries[:3]:
                 try:
-                    success = await self.semantic_search_service.ingest_pubmed_articles(query, max_results=2)
-                    if success:
-                        logger.info(f"Evidencia expandida para consulta: {query}")
+                    evidence = await self.pubmed_service.search_and_fetch(query, max_results=3)
+                    if evidence:
+                        all_evidence.extend(evidence)
+                        logger.info(f"Encontrada evidencia para consulta '{query}': {len(evidence)} documentos")
                 except Exception as e:
-                    logger.error(f"Error expandiendo evidencia para '{query}': {str(e)}")
+                    logger.error(f"Error buscando evidencia para '{query}': {str(e)}")
                     continue
             
-            logger.info("Expansión de evidencia completada")
+            if all_evidence:
+                existing_evidence = state.get("medical_evidence", [])
+                state["medical_evidence"] = self._add_evidence_without_duplicates(existing_evidence, all_evidence)
+                logger.info(f"Evidencia médica total después de PubMed: {len(state['medical_evidence'])} documentos")
+            
             return state
             
         except Exception as e:
-            logger.error(f"Error expandiendo evidencia: {str(e)}")
-            state["error"] = f"Error expandiendo evidencia: {str(e)}"
+            logger.error(f"Error en búsqueda en PubMed: {str(e)}")
+            state["error"] = f"Error en búsqueda en PubMed: {str(e)}"
             return state
     
-    def _format_medical_context(self, medical_evidence: List[Dict[str, Any]]) -> str:
-        """Formatea el contexto médico para el prompt"""
-        if not medical_evidence:
-            return "No hay evidencia médica disponible."
-        
-        context_parts = []
-        for i, evidence in enumerate(medical_evidence[:5], 1):  # Limitar a 5 documentos
-            content = evidence.get('content', '')[:500]
-            context_parts.append(f"Documento {i}: {content}...")
-        
-        return "\n\n".join(context_parts)
-    
-    async def _generate_patient_evaluation(self, state: DiagnosisState) -> DiagnosisState:
+    async def _generate_diagnosis(self, state: DiagnosisState) -> DiagnosisState:
         """Genera la evaluación completa del paciente para el fisioterapeuta"""
         try:
             symptoms = state["symptoms"]
@@ -365,56 +332,11 @@ class DiagnosisService:
             medical_evidence = state["medical_evidence"]
             evidence_evaluation = state.get("evidence_evaluation", {})
             
-            # Formatear contexto médico
-            context = self._format_medical_context(medical_evidence)
+            patient_evaluation = await self.diagnosis_tools.generate_diagnosis(
+                symptoms, patient_age, patient_gender, medical_evidence, evidence_evaluation
+            )
             
-            prompt = ChatPromptTemplate.from_template("""
-            Eres un fisioterapeuta experto. Genera una evaluación del paciente en formato JSON.
-            
-            PACIENTE: {age} años, {gender}, síntomas: {symptoms}
-            
-            Responde SOLO con este JSON exacto:
-            {{
-                "diagnosis_summary": "Resumen del diagnóstico",
-                "confidence": 0.8,
-                "patient_situation": "Descripción de la situación",
-                "diagnostic_suggestions": ["sugerencia1", "sugerencia2"],
-                "confirmation_tests": ["prueba1", "prueba2"],
-                "recommendations": ["recomendación1", "recomendación2"],
-                "evidence_quality": "alta",
-                "missing_information": ["info1"]
-            }}
-            """)
-            
-            chain = prompt | self.llm
-            result = await chain.ainvoke({
-                "age": patient_age,
-                "gender": patient_gender,
-                "symptoms": symptoms
-            })
-            
-            logger.info(f"Respuesta del LLM: {result.content}")
-            
-            # Parsear resultado JSON
-            try:
-                import json
-                patient_evaluation = json.loads(result.content)
-                state["patient_evaluation"] = patient_evaluation
-                logger.info("Evaluación del paciente generada exitosamente")
-            except json.JSONDecodeError as e:
-                logger.error(f"Error parseando evaluación del paciente: {e}")
-                logger.error(f"Contenido del LLM: {result.content}")
-                state["patient_evaluation"] = {
-                    "diagnosis_summary": "No se pudo generar evaluación completa",
-                    "confidence": 0.5,
-                    "patient_situation": "Paciente con síntomas que requieren evaluación",
-                    "diagnostic_suggestions": ["Evaluación fisioterapéutica completa"],
-                    "confirmation_tests": ["Exploración física", "Historia clínica"],
-                    "recommendations": ["Consulta con fisioterapeuta"],
-                    "evidence_quality": "baja",
-                    "missing_information": ["Evidencia insuficiente"]
-                }
-            
+            state["patient_evaluation"] = patient_evaluation
             return state
             
         except Exception as e:
@@ -422,46 +344,13 @@ class DiagnosisService:
             state["error"] = f"Error generando evaluación del paciente: {str(e)}"
             return state
     
-    async def update_medical_knowledge(self) -> Dict[str, Any]:
-        """
-        Actualiza la base de conocimiento médico
-        
-        Returns:
-            Dict con información sobre la actualización
-        """
+    async def _no_evidence_found(self, state: DiagnosisState) -> DiagnosisState:
+        """Genera una respuesta cuando no se encuentra evidencia médica"""
         try:
-            logger.info("Iniciando actualización de base de conocimiento médica")
-            
-            # Actualizar vector store con nuevos artículos
-            success = await self.semantic_search_service.ingest_pubmed_articles(
-                "medical diagnosis", 
-                max_results=10
-            )
-            
-            return {
-                "status": "success" if success else "error",
-                "message": "Base de conocimiento médica actualizada" if success else "Error en actualización",
-                "timestamp": datetime.now().isoformat()
-            }
-            
+            state["patient_evaluation"] = self.diagnosis_tools.generate_no_evidence_response()
+            return state
         except Exception as e:
-            logger.error(f"Error actualizando base de conocimiento: {str(e)}")
-            return {
-                "status": "error",
-                "message": f"Error actualizando base de conocimiento: {str(e)}",
-                "timestamp": datetime.now().isoformat()
-            }
+            logger.error(f"Error generando respuesta cuando no se encuentra evidencia médica: {str(e)}")
+            state["error"] = f"Error generando respuesta cuando no se encuentra evidencia médica: {str(e)}"
+            return state
     
-    async def get_diagnosis_history(self, patient_id: str = None) -> List[Dict[str, Any]]:
-        """
-        Obtiene historial de diagnósticos (placeholder para futura implementación)
-        
-        Args:
-            patient_id: ID del paciente (opcional)
-            
-        Returns:
-            Lista de diagnósticos previos
-        """
-        # TODO: Implementar persistencia de diagnósticos
-        logger.info("Historial de diagnósticos solicitado (no implementado)")
-        return []

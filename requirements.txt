@@ -6,8 +6,9 @@ pydantic-settings>=2.1.0
 
 # LangChain y OpenAI (solo para embeddings y vector store)
 langchain-openai>=0.0.5
-langchain-chroma>=0.0.10
+langchain-qdrant>=0.2.0
 langchain-text-splitters>=0.0.1
+qdrant-client>=1.7.0
 
 # LangGraph para flujos de trabajo
 langgraph>=0.2.0
@@ -37,3 +38,8 @@ pytest-asyncio>=0.21.0
 
 # Logging y monitoreo
 structlog>=23.2.0
+
+# Grafos
+networkx>=3.1
+matplotlib>=3.7.0
+pydot>=1.4.2
