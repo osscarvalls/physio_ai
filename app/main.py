@@ -26,7 +26,6 @@ def create_app() -> FastAPI:
         version="1.0.0"
     )
     
-    # Configuración de CORS
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -35,10 +34,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     
-    # Incluir routers
     app.include_router(diagnosis_router)
     
-    # Endpoint raíz
     @app.get("/")
     async def root():
         return {

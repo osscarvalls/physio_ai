@@ -36,12 +36,11 @@ class DiagnosisTools:
             {{
                 "patient_situation": "Descripción de la situación del paciente",
                 "diagnosis_summary": "Resumen del diagnóstico basado en la evidencia",
-                "confidence": "Confianza en el diagnóstico, entre 0 y 1",
-                "diagnostic_suggestions": "Sugerencias de diagnósticos basadas en la evidencia",
-                "confirmation_tests": "Pruebas de confirmación del diagnóstico sugeridas al fisioterapeuta",
-                "recommendations": "Recomendaciones basadas en la evidencia y los síntomas del paciente, sujeto a los criterios de confirmación del diagnóstico",
-                "evidence_quality": "Valoración de la relevancia y calidad de la evidencia",
-                "missing_information": "Información que falta para generar un diagnóstico completo"
+                "confidence": "Confianza en el diagnóstico, entre 0 y 1", 
+                "confirmation_tests": ["Prueba 1", "Prueba 2"], (pruebas de confirmación del diagnóstico)
+                "recommendations": ["Recomendación 1", "Recomendación 2"], (recomendaciones para el paciente si encaja con el diagnóstico)
+                "evidence_quality": "Valoración de la relevancia y calidad de la evidencia", (valoración de la relevancia y calidad de la evidencia)
+                "missing_information": ["Información faltante 1", "Información faltante 2"] (información que falta en la evidencia para generar un diagnóstico completo)
             }}
 
             NOTA IMPORTANTE: TODO lo que escribas en el JSON debe estar basado en la evidencia y los síntomas del paciente. 
@@ -66,14 +65,15 @@ class DiagnosisTools:
                 # Limpiar el contenido del LLM (eliminar markdown si existe)
                 content = result.content.strip()
                 if content.startswith('```json'):
-                    content = content[7:]  # Eliminar ```json
+                    content = content[7:] 
                 if content.endswith('```'):
-                    content = content[:-3]  # Eliminar ```
+                    content = content[:-3]
                 content = content.strip()
                 
                 patient_evaluation = json.loads(content)
                 logger.info("Evaluación del paciente generada exitosamente")
                 return patient_evaluation
+
             except json.JSONDecodeError as e:
                 logger.error(f"Error parseando evaluación del paciente: {e}")
                 logger.error(f"Contenido del LLM: {result.content}")

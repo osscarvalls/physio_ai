@@ -3,7 +3,7 @@ Herramientas de búsqueda para el servicio de diagnóstico
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import List
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 

@@ -3,7 +3,7 @@ Servicio principal de diagnóstico médico con LangGraph
 """
 
 import logging
-from typing import List, Dict, Any, TypedDict, Annotated
+from typing import List, Dict, Any, TypedDict
 from datetime import datetime
 from langgraph.graph import StateGraph, START, END
 from langchain_openai import ChatOpenAI
@@ -18,35 +18,19 @@ from app.config.settings import settings
 logger = logging.getLogger(__name__)
 
 
-# Estados del grafo
 class DiagnosisState(TypedDict):
-    # Datos del paciente
     symptoms: str
     patient_age: int
     patient_gender: str
-
-    # Datos de la búsqueda
     search_queries: List[str]
-
-    # Datos de la evidencia
     medical_evidence: List[Dict[str, Any]]
     evidence_evaluation: str
-
-    # Datos de la búsqueda en PubMed
     pubmed_queries: List[str]
-
-    # Control de flujo de búsqueda
     search_iterations: int
     max_search_iterations: int
-
-    # Control de flujo de evaluación
     evaluation_iterations: int
     max_evaluation_iterations: int
-
-    # Datos de la evaluación del paciente
     patient_evaluation: Dict[str, Any]
-
-    # Control de errores
     error: str
     timestamp: str
     
@@ -72,10 +56,8 @@ class DiagnosisService:
     
     def _setup_graph(self):
         """Configura el grafo de LangGraph con flujo iterativo y condicional"""
-        # Crear el grafo
         workflow = StateGraph(DiagnosisState)
         
-        # Añadir nodos
         workflow.add_node("generate_semantic_queries", self._generate_semantic_queries)
         workflow.add_node("search_semantic", self._search_semantic)
         workflow.add_node("evaluate_relevance", self._evaluate_relevance)
@@ -84,12 +66,10 @@ class DiagnosisService:
         workflow.add_node("generate_diagnosis", self._generate_diagnosis)
         workflow.add_node("no_evidence_found", self._no_evidence_found)
         
-        # Definir el flujo iterativo y condicional
         workflow.add_edge(START, "generate_semantic_queries")
         workflow.add_edge("generate_semantic_queries", "search_semantic")
         workflow.add_edge("search_semantic", "evaluate_relevance")
         
-        # Rama condicional: ¿Es relevante la evidencia?
         workflow.add_conditional_edges(
             "evaluate_relevance",
             self._evaluate_relevance_router,
@@ -100,19 +80,15 @@ class DiagnosisService:
             }
         )
         
-        # Rama de expansión: volver a buscar después de expandir
         workflow.add_edge("generate_pubmed_queries", "search_pubmed")
         workflow.add_edge("search_pubmed", "search_semantic")
         workflow.add_edge("search_semantic", "evaluate_relevance")
         
-        # Nodos finales
         workflow.add_edge("generate_diagnosis", END)
         workflow.add_edge("no_evidence_found", END)
         
-        # Compilar el grafo
         self.graph = workflow.compile()
-        
-        logger.info("Grafo de diagnóstico configurado con flujo iterativo y condicional")
+        logger.info("Grafo de diagnóstico configurado correctamente")
         
     async def evaluate_patient(self, request: DiagnosisRequest) -> DiagnosisResponse:
         """
@@ -151,18 +127,21 @@ class DiagnosisService:
             
             logger.info(f"Estado final del grafo: {final_state}")
             
-            # Construir respuesta según el nodo final
             if "patient_evaluation" in final_state and final_state["patient_evaluation"]:
                 patient_eval = final_state["patient_evaluation"]
                 response = DiagnosisResponse(
+                    patient_situation=patient_eval.get("patient_situation", "No se pudo generar evaluación"),
+                    diagnostic_suggestions=patient_eval.get("diagnostic_suggestions", []),
+                    confirmation_tests=patient_eval.get("confirmation_tests", []),
                     diagnosis=patient_eval.get("diagnosis_summary", "No se pudo generar evaluación"),
                     confidence=patient_eval.get("confidence", 0.0),
+                    evidence_quality=patient_eval.get("evidence_quality", "No se pudo generar evaluación"),
+                    missing_information=patient_eval.get("missing_information", []),
                     recommendations=patient_eval.get("recommendations", []),
                     timestamp=final_state.get("timestamp")
                 )
                 logger.info("Evaluación del paciente generada exitosamente")
             else:
-                # Caso de no evidencia encontrada
                 response = DiagnosisResponse(
                     diagnosis="No se encontró evidencia médica suficiente para generar un diagnóstico",
                     confidence=0.0,
@@ -182,8 +161,6 @@ class DiagnosisService:
                 error=str(e)
             )
     
-
-
     async def _generate_semantic_queries(self, state: DiagnosisState) -> DiagnosisState:
         """Genera consultas de búsqueda optimizadas para fisioterapia"""
         try:
@@ -204,6 +181,23 @@ class DiagnosisService:
             state["error"] = f"Error generando consultas: {str(e)}"
             return state
     
+    def _add_evidence_without_duplicates(self, existing_evidence: List[Dict], new_evidence: List[Dict]) -> List[Dict]:
+        """Agrega nueva evidencia evitando duplicados por PMID"""
+        if not new_evidence:
+            return existing_evidence
+            
+        pmids_existentes = {doc.get('metadata', {}).get('pmid') for doc in existing_evidence if doc.get('metadata', {}).get('pmid')}
+        evidencia_filtrada = []
+        
+        for doc in new_evidence:
+            pmid = doc.get('metadata', {}).get('pmid')
+            if pmid is None or pmid not in pmids_existentes:
+                evidencia_filtrada.append(doc)
+                if pmid:
+                    pmids_existentes.add(pmid)
+        
+        return existing_evidence + evidencia_filtrada
+
     async def _search_semantic(self, state: DiagnosisState) -> DiagnosisState:
         """Realiza búsqueda semántica en Qdrant"""
         try:
@@ -211,42 +205,32 @@ class DiagnosisService:
             symptoms = state["symptoms"]
             all_evidence = []
             
-            # Incrementar contador de iteraciones
             state["search_iterations"] += 1
             logger.info(f"Iteración de búsqueda {state['search_iterations']}/{state['max_search_iterations']}")
             
-            # Validar que tengamos consultas de búsqueda
             if not search_queries:
                 logger.warning("No hay consultas de búsqueda disponibles")
                 state["medical_evidence"] = []
                 return state
             
-            # Buscar evidencia semántica para cada consulta
-            for query in search_queries[:3]:  # Limitar a 3 consultas por iteración
+            for query in search_queries[:3]:
                 try:
                     evidence = await self.semantic_search_service.search_medical_evidence(query, max_results=3)
                     if evidence:
-                        # Evitar duplicados por PMID antes de agregar a all_evidence
-                        pmids_existentes = {doc.get('metadata', {}).get('pmid') for doc in all_evidence if doc.get('metadata', {}).get('pmid')}
-                        evidencia_filtrada = []
-                        for doc in evidence:
-                            pmid = doc.get('metadata', {}).get('pmid')
-                            if pmid is None or pmid not in pmids_existentes:
-                                evidencia_filtrada.append(doc)
-                                if pmid:
-                                    pmids_existentes.add(pmid)
-                        all_evidence.extend(evidencia_filtrada)
+                        all_evidence = self._add_evidence_without_duplicates(all_evidence, evidence)
                         logger.info(f"Encontrada evidencia para consulta '{query}': {len(evidence)} documentos")
                 except Exception as e:
                     logger.error(f"Error buscando evidencia para '{query}': {str(e)}")
                     continue
             
-            # Si no hay evidencia semántica, intentar búsqueda general
             if not all_evidence:
                 logger.info("No hay evidencia semántica, intentando búsqueda general")
-                evidence = await self.semantic_search_service.search_medical_evidence(symptoms, max_results=5)
-                if evidence:
-                    all_evidence.extend(evidence)
+                try:
+                    evidence = await self.semantic_search_service.search_medical_evidence(symptoms, max_results=5)
+                    if evidence:
+                        all_evidence = self._add_evidence_without_duplicates(all_evidence, evidence)
+                except Exception as e:
+                    logger.error(f"Error en búsqueda general: {str(e)}")
             
             state["medical_evidence"] = all_evidence
             logger.info(f"Evidencia médica encontrada en iteración {state['search_iterations']}: {len(all_evidence)} documentos")
@@ -279,13 +263,13 @@ class DiagnosisService:
         try:
             evaluation = state.get("evidence_evaluation", {})
             iterations = state.get("search_iterations", 0)
-            max_iterations = state.get("max_iterations", 3)
+            max_iterations = state.get("max_search_iterations", 3)
             
             return self.evaluation_tools.evaluate_relevance_router(evaluation, iterations, max_iterations)
             
         except Exception as e:
             logger.error(f"Error en lógica condicional: {str(e)}")
-            return "expand"  # Por defecto, expandir
+            return "expand"
     
     async def _generate_pubmed_queries(self, state: DiagnosisState) -> DiagnosisState:
         """Genera consultas de búsqueda PubMed optimizadas para fisioterapia"""
@@ -311,11 +295,13 @@ class DiagnosisService:
         """Realiza búsqueda en PubMed"""
         try:
             pubmed_queries = state["pubmed_queries"]
-            all_evidence = []
             
-    
-            # Buscar evidencia en PubMed para cada consulta
-            for query in pubmed_queries[:3]:  # Limitar a 3 consultas por iteración
+            if not pubmed_queries:
+                logger.warning("No hay consultas de PubMed disponibles")
+                return state
+            
+            all_evidence = []
+            for query in pubmed_queries[:3]:
                 try:
                     evidence = await self.pubmed_service.search_and_fetch(query, max_results=3)
                     if evidence:
@@ -325,7 +311,10 @@ class DiagnosisService:
                     logger.error(f"Error buscando evidencia para '{query}': {str(e)}")
                     continue
             
-            logger.info(f"Evidencia médica encontrada en iteración {state['search_iterations']}: {len(all_evidence)} documentos")
+            if all_evidence:
+                existing_evidence = state.get("medical_evidence", [])
+                state["medical_evidence"] = self._add_evidence_without_duplicates(existing_evidence, all_evidence)
+                logger.info(f"Evidencia médica total después de PubMed: {len(state['medical_evidence'])} documentos")
             
             return state
             
