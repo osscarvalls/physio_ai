@@ -1,7 +1,7 @@
 """
 Servicio principal de diagnóstico médico con LangGraph
 """
-
+import os
 import logging
 from typing import List, Dict, Any, TypedDict
 from datetime import datetime
@@ -88,8 +88,24 @@ class DiagnosisService:
         workflow.add_edge("no_evidence_found", END)
         
         self.graph = workflow.compile()
+        self.generate_graph_figure()
+
         logger.info("Grafo de diagnóstico configurado correctamente")
-        
+
+    def generate_graph_figure(self):
+        """Genera una figura del grafo de diagnóstico como png"""
+        try:
+            graph_png = self.graph.get_graph().draw_mermaid_png()
+            figures_path = "./figures"
+            if not os.path.exists(figures_path):
+                os.makedirs(figures_path)
+            with open(os.path.join(figures_path, "phys_io_pipeline.png"), "wb") as f:
+                f.write(graph_png)
+            logging.info("Visualización del grafo guardada como 'phys_io_pipeline.png'")
+        except Exception as e:
+            logging.error(f"Could not save graph visualization: {e}")
+            logging.info("Graph compiled successfully.")
+    
     async def evaluate_patient(self, request: DiagnosisRequest) -> DiagnosisResponse:
         """
         Genera una evaluación completa del paciente basada en la solicitud
