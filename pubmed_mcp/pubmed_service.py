@@ -10,10 +10,7 @@ from Bio import Entrez
 from datetime import datetime
 
 from app.config.settings import settings
-from qdrant_client import QdrantClient
-from langchain_qdrant import QdrantVectorStore
-from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
+from .models import PubMedArticle, PubMedSearchResponse
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +34,7 @@ class PubMedService:
         Entrez.sleep_between_trials = 1
         Entrez.tool = "PySIO_AI/1.0"
     
-    async def search_and_fetch(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    async def search_and_fetch(self, query: str, max_results: int = 5) -> PubMedSearchResponse:
         """
         Busca y obtiene artículos de PubMed
         
@@ -46,7 +43,7 @@ class PubMedService:
             max_results: Número máximo de resultados
             
         Returns:
-            Lista de artículos con detalles
+            Respuesta estructurada con artículos de PubMed
         """
         try:
             logger.info(f"Buscando en PubMed: {query}")
@@ -74,8 +71,6 @@ class PubMedService:
                     article = await self._fetch_article_details(pmid)
                     if article:
                         articles.append(article)
-                        # Solo guardar en QDRANT si el artículo se obtuvo correctamente
-                        self._save_article_to_qdrant(article)
                     else:
                         logger.warning(f"No se pudo obtener el artículo para PMID {pmid}")
 
@@ -89,11 +84,19 @@ class PubMedService:
                 
             
             logger.info(f"Procesados {len(articles)} artículos de {len(pmid_list)} PMIDs")
-            return articles
+            return PubMedSearchResponse(
+                articles=articles,
+                total_results=len(articles),
+                query=query
+            )
             
         except Exception as e:
             logger.error(f"Error en búsqueda y obtención: {str(e)}")
-            return []
+            return PubMedSearchResponse(
+                articles=[],
+                total_results=0,
+                query=query
+            )
     
     async def _fetch_article_details(self, pmid: str) -> Optional[Dict[str, Any]]:
         """Obtiene detalles de un artículo por PMID"""
@@ -117,8 +120,8 @@ class PubMedService:
             logger.error(f"Error obteniendo artículo {pmid}: {str(e)}")
             return None
     
-    def _parse_article(self, article: Dict[str, Any]) -> Dict[str, Any]:
-        """Parsea un artículo de PubMed"""
+    def _parse_article(self, article: Dict[str, Any]) -> PubMedArticle:
+        """Parsea un artículo de PubMed y devuelve un modelo Pydantic"""
         try:
             pmid = str(article['MedlineCitation']['PMID'])
             title = article['MedlineCitation']['Article']['ArticleTitle']
@@ -163,104 +166,20 @@ class PubMedService:
             if 'FullJournalName' in article['MedlineCitation']['Article']['Journal']:
                 full_text = article['MedlineCitation']['Article']['Journal']['FullJournalName']
             
-            return {
-                'pmid': pmid,
-                'title': title,
-                'abstract': abstract,
-                'authors': authors,
-                'publication_date': pub_date,
-                'journal': journal,
-                'keywords': keywords,
-                'full_text': full_text
-            }
+            return PubMedArticle(
+                pmid=pmid,
+                title=title,
+                abstract=abstract,
+                authors=authors,
+                publication_date=pub_date,
+                journal=journal,
+                keywords=keywords,
+                full_text=full_text
+            )
             
         except Exception as e:
             logger.error(f"Error parseando artículo: {str(e)}")
             return {}
     
-    def _save_article_to_qdrant(self, article: Dict[str, Any]):
-        """Guarda un artículo en Qdrant"""
-        try:
-            # Validar que el artículo tenga los campos mínimos necesarios
-            if not article or not isinstance(article, dict):
-                logger.error("Artículo inválido o None")
-                return
-                
-            if 'pmid' not in article:
-                logger.error("Artículo sin PMID")
-                return
-                
-            # Asegurar que page_content no esté vacío
-            page_content = article.get("abstract", "")
-            if not page_content:
-                page_content = article.get("title", "Sin contenido disponible")
-            
-            # Crear cliente de Qdrant
-            client = QdrantClient(
-                url=settings.QDRANT_URL,
-                api_key=settings.QDRANT_API_KEY
-            )
-            # Crear vectorstore de Qdrant
-            collection_name = settings.QDRANT_COLLECTION_NAME
-            vectorstore = QdrantVectorStore(
-                client=client,
-                collection_name=collection_name,
-                embedding=OpenAIEmbeddings(
-                    api_key=settings.OPENAI_API_KEY
-                )
-            )
-            # Crear documento simple sin ID
-            doc = Document(
-                page_content=page_content,
-                metadata={
-                    "title": article.get("title", ""),
-                    "pmid": article['pmid'],
-                    "keywords": article.get("keywords", ""),
-                    "authors": article.get("authors", ""),
-                    "publication_date": article.get("publication_date", ""),
-                    "journal": article.get("journal", "")
-                }
-            )
-            
-            # Debug: verificar que el documento se creó correctamente
-            logger.info(f"Documento creado: PMID={article['pmid']}, contenido={len(page_content)} chars")
-            logger.info(f"Metadatos: {doc.metadata}")
-
-            # Intentar agregar usando langchain primero
-            try:
-                vectorstore.add_documents([doc])
-                logger.info(f"Artículo {article['pmid']} guardado exitosamente en QDRANT usando langchain")
-            except Exception as add_error:
-                logger.warning(f"Langchain falló, intentando con cliente directo: {str(add_error)}")
-                
-                # Fallback: usar cliente directo de QDRANT
-                try:
-                    # Crear embeddings
-                    embeddings = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
-                    vector = embeddings.embed_query(page_content)
-                    
-                    # Insertar directamente en QDRANT
-                    client.upsert(
-                        collection_name=collection_name,
-                        points=[{
-                            "id": article['pmid'],
-                            "vector": vector,
-                            "payload": {
-                                "page_content": page_content,
-                                "title": article.get("title", ""),
-                                "pmid": article['pmid'],
-                                "keywords": article.get("keywords", ""),
-                                "authors": article.get("authors", ""),
-                                "publication_date": article.get("publication_date", ""),
-                                "journal": article.get("journal", "")
-                            }
-                        }]
-                    )
-                    logger.info(f"Artículo {article['pmid']} guardado exitosamente en QDRANT usando cliente directo")
-                    
-                except Exception as direct_error:
-                    logger.error(f"Error con cliente directo: {str(direct_error)}")
-
-        except Exception as e:
-            logger.error(f"Error guardando el artículo {article['pmid']} en QDRANT: {str(e)}")
+    # Método _save_article_to_qdrant eliminado - no se guarda en Qdrant
     

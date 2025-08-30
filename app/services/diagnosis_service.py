@@ -10,10 +10,10 @@ from langchain_openai import ChatOpenAI
 
 
 from app.services.semantic_search_service import SemanticSearchService
-from app.services.pubmed_service import PubMedService
 from app.services.tools import SearchTools, EvaluationTools, DiagnosisTools
 from app.models.diagnosis import DiagnosisRequest, DiagnosisResponse
 from app.config.settings import settings
+from app.services.mcp_client import PubMedMCPClient
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,6 @@ class DiagnosisService:
     def __init__(self):
         """Inicializa el servicio de diagnóstico"""
         self.semantic_search_service = SemanticSearchService()
-        self.pubmed_service = PubMedService()
         self.llm = ChatOpenAI(
             model='gpt-5-nano',
             temperature=0.1,
@@ -51,6 +50,9 @@ class DiagnosisService:
         self.search_tools = SearchTools(self.llm)
         self.evaluation_tools = EvaluationTools(self.llm)
         self.diagnosis_tools = DiagnosisTools(self.llm)
+        
+        # Inicializar cliente MCP (se conectará cuando sea necesario)
+        self.mcp_client = PubMedMCPClient()
         
         self._setup_graph()
     
@@ -308,7 +310,7 @@ class DiagnosisService:
             return state
     
     async def _search_pubmed(self, state: DiagnosisState) -> DiagnosisState:
-        """Realiza búsqueda en PubMed"""
+        """Realiza búsqueda en PubMed usando el cliente MCP"""
         try:
             pubmed_queries = state["pubmed_queries"]
             
@@ -317,15 +319,18 @@ class DiagnosisService:
                 return state
             
             all_evidence = []
-            for query in pubmed_queries[:3]:
-                try:
-                    evidence = await self.pubmed_service.search_and_fetch(query, max_results=3)
-                    if evidence:
-                        all_evidence.extend(evidence)
-                        logger.info(f"Encontrada evidencia para consulta '{query}': {len(evidence)} documentos")
-                except Exception as e:
-                    logger.error(f"Error buscando evidencia para '{query}': {str(e)}")
-                    continue
+            
+            # Usar el cliente MCP para buscar en PubMed
+            async with self.mcp_client as mcp:
+                for query in pubmed_queries[:3]:
+                    try:
+                        evidence = await mcp.search_pubmed(query, max_results=3)
+                        if evidence:
+                            all_evidence.extend(evidence)
+                            logger.info(f"Encontrada evidencia para consulta '{query}': {len(evidence)} documentos")
+                    except Exception as e:
+                        logger.error(f"Error buscando evidencia para '{query}': {str(e)}")
+                        continue
             
             if all_evidence:
                 existing_evidence = state.get("medical_evidence", [])

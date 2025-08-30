@@ -9,7 +9,6 @@ from typing import List, Dict, Any
 from app.models.diagnosis import DiagnosisRequest, DiagnosisResponse
 from app.services.diagnosis_service import DiagnosisService
 from app.services.semantic_search_service import SemanticSearchService
-from app.services.pubmed_service import PubMedService
 
 logger = logging.getLogger(__name__)
 

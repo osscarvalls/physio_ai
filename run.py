@@ -5,6 +5,7 @@ Script simple para ejecutar la API PySIO AI
 
 import uvicorn
 from app.config.settings import settings
+from pubmed_mcp import mcp
 
 if __name__ == "__main__":
     print("🚀 Iniciando PySIO AI API...")
@@ -13,6 +14,10 @@ if __name__ == "__main__":
     print(f"🔗 Health Check: http://{settings.HOST}:{settings.PORT}/api/v1/health")
     print("=" * 50)
     
+        # MCP comentado temporalmente para evitar conflictos
+    # print("ℹ️  MCP deshabilitado temporalmente")
+    
+    # Ejecutar la API FastAPI
     uvicorn.run(
         "app.main:app",
         host=settings.HOST,
